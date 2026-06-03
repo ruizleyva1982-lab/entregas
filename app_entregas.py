@@ -122,9 +122,8 @@ def cargar_datos(_cache_key):
     ws = sh.worksheet(SHEET_NAME)
 
     raw = ws.get_all_records(
-        expected_headers=[],
-        value_render_option="UNFORMATTED_VALUE",   # <-- clave: recibir valores sin formato
-        date_time_render_option="FORMATTED_STRING", # fechas como string ISO
+    expected_headers=[],
+    value_render_option="UNFORMATTED_VALUE",
     )
 
     df = pd.DataFrame(raw)
