@@ -249,7 +249,7 @@ with st.sidebar:
 
     # Filtro por estado de transferencia
     if "EstadoTransferencia" in df.columns:
-        estados = ["Todos"] + sorted(df["EstadoTransferencia"].dropna().unique().tolist())
+        estados = ["Todos"] + sorted(df["EstadoTransferencia"].dropna().unique().tolist(), key=str)
         estado_sel = st.selectbox("Estado de transferencia", estados)
     else:
         estado_sel = "Todos"
