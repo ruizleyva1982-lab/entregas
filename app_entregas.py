@@ -114,7 +114,7 @@ if "ultima_actualizacion" not in st.session_state:
 # ─────────────────────────────────────────────
 col_titulo, col_boton = st.columns([5, 1])
 with col_titulo:
-    st.title("📦 Control de Entregas — María Almenara")
+    st.title("📦 Control de Entregas")
 with col_boton:
     st.write("")
     if st.button("🔄 Recargar datos", use_container_width=True, type="primary"):
