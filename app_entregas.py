@@ -77,10 +77,12 @@ def cargar_datos(_cache_key):
     client = get_gspread_client()
     sh = client.open_by_key(SPREADSHEET_ID)
     ws = sh.worksheet(SHEET_NAME)
-    raw = ws.get_all_records(
-        expected_headers=[],
-        value_render_option="UNFORMATTED_VALUE",
-    )
+    raw = ws.get_all_values()
+    if raw:
+        headers = raw[0]
+        raw = [dict(zip(headers, row)) for row in raw[1:]]
+    else:
+        raw = []
     df = pd.DataFrame(raw)
     if df.empty:
         return df, datetime.now(LIMA_TZ)
