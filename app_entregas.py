@@ -19,8 +19,9 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
-SPREADSHEET_ID = "1OQm27gEcI3-YylG03BpzbZewRqlYmkZydIhRklY7x1c"
+SPREADSHEET_ID = "TU_SPREADSHEET_ID_AQUI"
 SHEET_NAME = "Hoja1"
+SHEET_NAME2 = "Hoja2"
 
 LIMA_TZ = pytz.timezone("America/Lima")
 
@@ -75,6 +76,8 @@ def parse_fecha_segura(valor):
 def cargar_datos(_cache_key):
     client = get_gspread_client()
     sh = client.open_by_key(SPREADSHEET_ID)
+
+    # ── Hoja1: datos principales ──
     ws = sh.worksheet(SHEET_NAME)
     raw = ws.get_all_records(
         expected_headers=[],
@@ -83,6 +86,7 @@ def cargar_datos(_cache_key):
     df = pd.DataFrame(raw)
     if df.empty:
         return df, datetime.now(LIMA_TZ)
+
     if "Fecha de vencimiento" in df.columns:
         df["Fecha de vencimiento"] = df["Fecha de vencimiento"].apply(parse_fecha_segura)
     for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
@@ -91,6 +95,20 @@ def cargar_datos(_cache_key):
     for col in ["De código de almacén", "Código de almacén"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
+
+    # ── Hoja2: líneas de producción ──
+    try:
+        ws2 = sh.worksheet(SHEET_NAME2)
+        raw2 = ws2.get_all_values()
+        if raw2:
+            headers2 = raw2[0]
+            df2 = pd.DataFrame([dict(zip(headers2, r)) for r in raw2[1:]])
+            df2 = df2[["Número de artículo", "Linea de Producción"]].drop_duplicates(subset=["Número de artículo"])
+            df2 = df2[df2["Número de artículo"].str.strip() != ""]
+            df = df.merge(df2, on="Número de artículo", how="left")
+    except Exception:
+        df["Linea de Producción"] = ""
+
     return df, datetime.now(LIMA_TZ)
 
 
@@ -162,8 +180,8 @@ with st.container():
         almacen_a = st.selectbox("📍 A almacén (destino)", ["Todos"] + almacenes_destino)
 
     with c3:
-        if "Nombre de grupo" in df.columns:
-            grupos = ["Todos"] + sorted(df["Nombre de grupo"].dropna().unique().tolist(), key=str)
+        if "Linea de Producción" in df.columns:
+            grupos = ["Todos"] + sorted([x for x in df["Linea de Producción"].dropna().unique().tolist() if str(x).strip()], key=str)
             grupo_sel = st.selectbox("🏭 Línea de producción", grupos)
         else:
             grupo_sel = "Todos"
@@ -222,8 +240,8 @@ if rango_fechas and len(rango_fechas) == 2:
         (df_vis["Fecha de vencimiento"] <= f_fin)
     ]
 
-if grupo_sel != "Todos" and "Nombre de grupo" in df_vis.columns:
-    df_vis = df_vis[df_vis["Nombre de grupo"] == grupo_sel]
+if grupo_sel != "Todos" and "Linea de Producción" in df_vis.columns:
+    df_vis = df_vis[df_vis["Linea de Producción"] == grupo_sel]
 
 
 # ─────────────────────────────────────────────
