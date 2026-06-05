@@ -19,7 +19,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
-SPREADSHEET_ID = "1OQm27gEcI3-YylG03BpzbZewRqlYmkZydIhRklY7x1c"
+SPREADSHEET_ID = "TU_SPREADSHEET_ID_AQUI"
 SHEET_NAME = "Hoja1"
 
 LIMA_TZ = pytz.timezone("America/Lima")
@@ -162,11 +162,11 @@ with st.container():
         almacen_a = st.selectbox("📍 A almacén (destino)", ["Todos"] + almacenes_destino)
 
     with c3:
-        if "EstadoTransferencia" in df.columns:
-            estados = ["Todos"] + sorted(df["EstadoTransferencia"].dropna().unique().tolist(), key=str)
-            estado_sel = st.selectbox("📋 Estado de transferencia", estados)
+        if "Nombre de grupo" in df.columns:
+            grupos = ["Todos"] + sorted(df["Nombre de grupo"].dropna().unique().tolist(), key=str)
+            grupo_sel = st.selectbox("🏭 Línea de producción", grupos)
         else:
-            estado_sel = "Todos"
+            grupo_sel = "Todos"
 
     # Fila 2: búsqueda + fechas
     c4, c5, c6 = st.columns([1.5, 2, 2])
@@ -174,7 +174,7 @@ with st.container():
     with c4:
         busqueda_tipo = st.radio(
             "🔍 Buscar por",
-            ["N° Artículo", "Descripción"],
+            ["Número de artículo", "Descripción del artículo"],
             horizontal=True,
         )
 
@@ -212,10 +212,7 @@ if almacen_a != "Todos":
 
 if busqueda_texto.strip():
     txt = busqueda_texto.strip().upper()
-    if busqueda_tipo == "N° Artículo":
-        df_vis = df_vis[df_vis["Número de artículo"].astype(str).str.upper().str.contains(txt, na=False)]
-    else:
-        df_vis = df_vis[df_vis["Descripción del artículo"].astype(str).str.upper().str.contains(txt, na=False)]
+    df_vis = df_vis[df_vis[busqueda_tipo].astype(str).str.upper().str.contains(txt, na=False)]
 
 if rango_fechas and len(rango_fechas) == 2:
     f_ini = pd.Timestamp(rango_fechas[0])
@@ -225,8 +222,8 @@ if rango_fechas and len(rango_fechas) == 2:
         (df_vis["Fecha de vencimiento"] <= f_fin)
     ]
 
-if estado_sel != "Todos" and "EstadoTransferencia" in df_vis.columns:
-    df_vis = df_vis[df_vis["EstadoTransferencia"] == estado_sel]
+if grupo_sel != "Todos" and "Nombre de grupo" in df_vis.columns:
+    df_vis = df_vis[df_vis["Nombre de grupo"] == grupo_sel]
 
 
 # ─────────────────────────────────────────────
