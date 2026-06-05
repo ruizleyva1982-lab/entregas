@@ -19,7 +19,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
-SPREADSHEET_ID = "TU_SPREADSHEET_ID_AQUI"
+SPREADSHEET_ID = "1OQm27gEcI3-YylG03BpzbZewRqlYmkZydIhRklY7x1c"
 SHEET_NAME = "Hoja1"
 
 LIMA_TZ = pytz.timezone("America/Lima")
