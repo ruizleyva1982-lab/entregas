@@ -19,7 +19,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.readonly",
 ]
 
-SPREADSHEET_ID = "1OQm27gEcI3-YylG03BpzbZewRqlYmkZydIhRklY7x1c"
+SPREADSHEET_ID = "TU_SPREADSHEET_ID_AQUI"
 SHEET_NAME = "Hoja1"
 SHEET_NAME2 = "Hoja2"
 
@@ -133,7 +133,7 @@ with col_logo:
         unsafe_allow_html=True,
     )
 with col_titulo:
-    st.title("Control de Entregas")
+    st.title("Control de Entregas — María Almenara")
 with col_boton:
     st.write("")
     if st.button("🔄 Recargar datos", use_container_width=True, type="primary"):
@@ -250,7 +250,7 @@ if grupo_sel != "Todos" and "Linea de Producción" in df_vis.columns:
 st.subheader(f"📋 Detalle de movimientos — {len(df_vis):,} registros")
 
 cols_existentes = [c for c in COLS_MOSTRAR if c in df_vis.columns]
-st.caption(f"Columnas disponibles: {df_vis.columns.tolist()}")
+df_tabla = df_vis[cols_existentes].copy()
 
 for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
     if col in df_tabla.columns:
@@ -280,10 +280,6 @@ else:
     )
 
     csv = df_vis[cols_existentes].copy()
-    if "Fecha de vencimiento" in csv.columns:
-        csv["Fecha de vencimiento"] = csv["Fecha de vencimiento"].apply(
-            lambda x: x.strftime("%d/%m/%Y") if pd.notna(x) else ""
-        )
     csv_bytes = csv.to_csv(index=False).encode("utf-8-sig")
     st.download_button(
         label="⬇️ Descargar CSV",
