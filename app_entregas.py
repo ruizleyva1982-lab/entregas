@@ -26,6 +26,7 @@ SHEET_NAME2 = "Hoja2"
 LIMA_TZ = pytz.timezone("America/Lima")
 
 COLS_MOSTRAR = [
+    "Número de documento",
     "Número de artículo",
     "Descripción del artículo",
     "Fecha de vencimiento",
