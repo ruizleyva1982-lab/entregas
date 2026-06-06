@@ -29,7 +29,6 @@ COLS_MOSTRAR = [
     "Número de documento",
     "Número de artículo",
     "Descripción del artículo",
-    "Fecha de vencimiento",
     "Cantidad",
     "CantidadAtendida",
     "CantidadPendiente",
