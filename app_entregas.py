@@ -250,6 +250,7 @@ if grupo_sel != "Todos" and "Linea de Producción" in df_vis.columns:
 st.subheader(f"📋 Detalle de movimientos — {len(df_vis):,} registros")
 
 cols_existentes = [c for c in COLS_MOSTRAR if c in df_vis.columns]
+st.caption(f"DEBUG: {df_vis.columns.tolist()}")
 df_tabla = df_vis[cols_existentes].copy()
 
 for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
