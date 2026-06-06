@@ -250,7 +250,7 @@ if grupo_sel != "Todos" and "Linea de Producción" in df_vis.columns:
 st.subheader(f"📋 Detalle de movimientos — {len(df_vis):,} registros")
 
 cols_existentes = [c for c in COLS_MOSTRAR if c in df_vis.columns]
-df_tabla = df_vis[cols_existentes].copy()
+st.caption(f"Columnas disponibles: {df_vis.columns.tolist()}")
 
 if "Fecha de vencimiento" in df_tabla.columns:
     df_tabla["Fecha de vencimiento"] = df_tabla["Fecha de vencimiento"].apply(
@@ -262,9 +262,9 @@ for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
         df_tabla[col] = df_tabla[col].round(3)
 
 df_tabla = df_tabla.rename(columns={
+    "Número de documento": "N° Documento",
     "Número de artículo": "N° Artículo",
     "Descripción del artículo": "Descripción",
-    "Fecha de vencimiento": "Fecha Vcto.",
     "CantidadAtendida": "Atendida",
     "CantidadPendiente": "Pendiente",
 })
