@@ -79,11 +79,12 @@ def cargar_datos(_cache_key):
 
     # ── Hoja1: datos principales ──
     ws = sh.worksheet(SHEET_NAME)
-    raw = ws.get_all_records(
-        expected_headers=[],
-        value_render_option="UNFORMATTED_VALUE",
-    )
-    df = pd.DataFrame(raw)
+    raw = ws.get_all_values()
+    if raw:
+        headers = raw[0]
+        df = pd.DataFrame(raw[1:], columns=headers)
+    else:
+        df = pd.DataFrame()
     if df.empty:
         return df, datetime.now(LIMA_TZ)
 
