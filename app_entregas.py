@@ -82,6 +82,7 @@ def cargar_datos(_cache_key):
     raw = ws.get_all_values()
     if raw:
         headers = raw[0]
+        df = pd.DataFrame(raw[1:], columns=headers)
         df = df.loc[:, ~df.columns.duplicated(keep='first')]
     else:
         df = pd.DataFrame()
