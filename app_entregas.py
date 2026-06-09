@@ -26,7 +26,7 @@ SHEET_NAME2 = "Hoja2"
 LIMA_TZ = pytz.timezone("America/Lima")
 
 COLS_MOSTRAR = [
-    "Número de documento.1",
+    "Número de documento",
     "Número de artículo",
     "Descripción del artículo",
     "Cantidad",
@@ -82,7 +82,7 @@ def cargar_datos(_cache_key):
     raw = ws.get_all_values()
     if raw:
         headers = raw[0]
-        df = pd.DataFrame(raw[1:], columns=headers)
+        df = df.loc[:, ~df.columns.duplicated(keep='first')]
     else:
         df = pd.DataFrame()
     if df.empty:
@@ -258,7 +258,7 @@ for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
         df_tabla[col] = df_tabla[col].round(3)
 
 df_tabla = df_tabla.rename(columns={
-    "Número de documento.1": "N° Documento",
+    "Número de documento": "N° Documento",
     "Número de artículo": "N° Artículo",
     "Descripción del artículo": "Descripción",
     "CantidadAtendida": "Atendida",
