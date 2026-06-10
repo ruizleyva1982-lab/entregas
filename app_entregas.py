@@ -94,13 +94,10 @@ def cargar_datos(_cache_key):
     for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
         if col in df.columns:
             s = df[col].astype(str).str.strip()
-            # Si tiene coma Y punto → coma es separador de miles → quitar coma
-            # Si tiene coma pero NO punto → coma es separador decimal → reemplazar por punto
             tiene_punto = s.str.contains(r'\.', regex=True)
             s = s.where(tiene_punto, s.str.replace(",", ".", regex=False))
             s = s.where(~tiene_punto, s.str.replace(",", "", regex=False))
             df[col] = pd.to_numeric(s, errors="coerce")
-            )
     for col in ["De código de almacén", "Código de almacén"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
