@@ -72,6 +72,75 @@ def parse_fecha_segura(valor):
         return pd.NaT
 
 
+def detectar_st_relacionadas(df):
+    """
+    Detecta ST (Solicitudes de Transferencia) que aparentan no estar
+    atendidas pero que tienen una "ST hermana" del mismo día, mismo
+    artículo, mismas bodegas y misma cantidad que SÍ fue atendida.
+
+    Esto ocurre cuando el almacén origen cierra una ST sin transferir
+    (por falta de stock físico) y luego se crea una nueva ST que sí
+    se atiende. La primera queda con CantidadPendiente > 0 pero en
+    realidad la necesidad ya fue cubierta por la segunda.
+    """
+    cols_necesarias = [
+        "Número de documento", "Número de artículo", "De código de almacén",
+        "Código de almacén", "Cantidad", "CantidadAtendida", "CantidadPendiente",
+        "Fecha de contabilización",
+    ]
+    if not all(c in df.columns for c in cols_necesarias):
+        return pd.DataFrame()
+
+    base = df[cols_necesarias].copy()
+    base = base.dropna(subset=["Fecha de contabilización"])
+    base["fecha_dia"] = base["Fecha de contabilización"].dt.date
+
+    # Clave de "misma necesidad": artículo + almacén origen + almacén destino + cantidad + día
+    base["clave"] = (
+        base["Número de artículo"].astype(str) + "|" +
+        base["De código de almacén"].astype(str) + "|" +
+        base["Código de almacén"].astype(str) + "|" +
+        base["Cantidad"].round(3).astype(str) + "|" +
+        base["fecha_dia"].astype(str)
+    )
+
+    # ST no atendidas (pendiente > 0)
+    no_atendidas = base[base["CantidadPendiente"] > 0].copy()
+    if no_atendidas.empty:
+        return pd.DataFrame()
+
+    # ST que sí fueron atendidas (sirven como "hermana que cubrió la necesidad")
+    atendidas = base[base["CantidadAtendida"] > 0].copy()
+    if atendidas.empty:
+        return pd.DataFrame()
+
+    alertas = []
+    for _, fila in no_atendidas.iterrows():
+        hermanas = atendidas[
+            (atendidas["clave"] == fila["clave"]) &
+            (atendidas["Número de documento"] != fila["Número de documento"])
+        ]
+        if not hermanas.empty:
+            for _, h in hermanas.iterrows():
+                alertas.append({
+                    "Número de artículo": fila["Número de artículo"],
+                    "ST sin atender": fila["Número de documento"],
+                    "Cant. pendiente (ST sin atender)": fila["CantidadPendiente"],
+                    "ST que sí se atendió": h["Número de documento"],
+                    "Cant. atendida (ST hermana)": h["CantidadAtendida"],
+                    "De almacén": fila["De código de almacén"],
+                    "A almacén": fila["Código de almacén"],
+                    "Fecha": fila["fecha_dia"],
+                })
+
+    if not alertas:
+        return pd.DataFrame()
+
+    return pd.DataFrame(alertas).drop_duplicates(
+        subset=["ST sin atender", "ST que sí se atendió"]
+    )
+
+
 @st.cache_data(ttl=0, show_spinner=False)
 def cargar_datos(_cache_key):
     client = get_gspread_client()
@@ -91,6 +160,8 @@ def cargar_datos(_cache_key):
 
     if "Fecha de vencimiento" in df.columns:
         df["Fecha de vencimiento"] = df["Fecha de vencimiento"].apply(parse_fecha_segura)
+    if "Fecha de contabilización" in df.columns:
+        df["Fecha de contabilización"] = df["Fecha de contabilización"].apply(parse_fecha_segura)
     for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
         if col in df.columns:
             s = df[col].astype(str).str.strip()
@@ -369,4 +440,35 @@ with st.expander("📊 Resumen agrupado por artículo"):
                 "Atendida":  st.column_config.NumberColumn(format="%.3f"),
                 "Pendiente": st.column_config.NumberColumn(format="%.3f"),
             },
+        )
+
+# ─────────────────────────────────────────────
+# ALERTA: ST POSIBLEMENTE DUPLICADAS / YA CUBIERTAS
+# ─────────────────────────────────────────────
+with st.expander("⚠️ ST posiblemente duplicadas o ya cubiertas"):
+    st.caption(
+        "Detecta ST con cantidad pendiente que tienen otra ST del mismo día, "
+        "mismo artículo y mismos almacenes que sí fue atendida. Esto suele pasar "
+        "cuando una ST se cierra sin transferencia por falta de stock físico y "
+        "luego se crea una nueva ST que sí se atiende."
+    )
+    alertas_df = detectar_st_relacionadas(df)
+
+    if alertas_df.empty:
+        st.info("No se detectaron ST con este patrón en los datos actuales.")
+    else:
+        st.warning(f"Se encontraron {len(alertas_df)} posible(s) caso(s).")
+        st.dataframe(
+            alertas_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Cant. pendiente (ST sin atender)": st.column_config.NumberColumn(format="%.3f"),
+                "Cant. atendida (ST hermana)": st.column_config.NumberColumn(format="%.3f"),
+            },
+        )
+        st.caption(
+            "⚠️ Verifica cada caso: también puede ocurrir que se haya pedido el mismo "
+            "insumo en otra ST por una necesidad real distinta. La coincidencia de "
+            "artículo + almacenes + cantidad + fecha es una señal, no una certeza."
         )
