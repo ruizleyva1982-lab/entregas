@@ -236,6 +236,8 @@ with col_boton:
 # ─────────────────────────────────────────────
 # CARGA DE DATOS
 # ─────────────────────────────────────────────
+import time
+_t0 = time.time()
 with st.spinner("Cargando datos desde Google Sheets…"):
     try:
         df, ultima_actualizacion = cargar_datos(st.session_state.cache_key)
@@ -243,6 +245,8 @@ with st.spinner("Cargando datos desde Google Sheets…"):
     except Exception as e:
         st.error(f"❌ Error al conectar con Google Sheets: {e}")
         st.stop()
+_t1 = time.time()
+st.caption(f"⏱️ DEBUG carga datos: {_t1 - _t0:.2f}s")
 
 if df.empty:
     st.warning("La hoja está vacía.")
@@ -375,6 +379,8 @@ if filtros["grupo_sel"] != "Todos" and "Linea de Producción" in df.columns:
     mask &= (df["Linea de Producción"] == filtros["grupo_sel"])
 
 df_vis = df[mask]
+_t2 = time.time()
+st.caption(f"⏱️ DEBUG filtrado: {_t2 - _t1:.2f}s")
 
 
 # ─────────────────────────────────────────────
@@ -460,9 +466,15 @@ with st.expander("⚠️ ST posiblemente duplicadas o ya cubiertas"):
         "cuando una ST se cierra sin transferencia por falta de stock físico y "
         "luego se crea una nueva ST que sí se atiende."
     )
-    alertas_df = detectar_st_relacionadas(df)
 
-    if alertas_df.empty:
+    if st.button("🔍 Buscar ST posiblemente duplicadas", key="btn_detectar_st"):
+        st.session_state["alertas_df"] = detectar_st_relacionadas(df)
+
+    alertas_df = st.session_state.get("alertas_df")
+
+    if alertas_df is None:
+        st.info("Presiona el botón para analizar las ST (puede tardar unos segundos).")
+    elif alertas_df.empty:
         st.info("No se detectaron ST con este patrón en los datos actuales.")
     else:
         st.warning(f"Se encontraron {len(alertas_df)} posible(s) caso(s).")
