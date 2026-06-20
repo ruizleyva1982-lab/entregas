@@ -72,7 +72,7 @@ def parse_fecha_segura(valor):
         return pd.NaT
 
 
-@st.cache_data(ttl=0, show_spinner=False)
+@st.cache_data(show_spinner=False)
 def detectar_st_relacionadas(df):
     """
     Detecta ST (Solicitudes de Transferencia) que aparentan no estar
@@ -138,7 +138,7 @@ def detectar_st_relacionadas(df):
 
 
 
-@st.cache_data(ttl=0, show_spinner=False)
+@st.cache_data(show_spinner=False)
 def cargar_datos(_cache_key):
     client = get_gspread_client()
     sh = client.open_by_key(SPREADSHEET_ID)
@@ -236,8 +236,6 @@ with col_boton:
 # ─────────────────────────────────────────────
 # CARGA DE DATOS
 # ─────────────────────────────────────────────
-import time
-_t0 = time.time()
 with st.spinner("Cargando datos desde Google Sheets…"):
     try:
         df, ultima_actualizacion = cargar_datos(st.session_state.cache_key)
@@ -245,8 +243,6 @@ with st.spinner("Cargando datos desde Google Sheets…"):
     except Exception as e:
         st.error(f"❌ Error al conectar con Google Sheets: {e}")
         st.stop()
-_t1 = time.time()
-st.caption(f"⏱️ DEBUG carga datos: {_t1 - _t0:.2f}s")
 
 if df.empty:
     st.warning("La hoja está vacía.")
@@ -379,8 +375,6 @@ if filtros["grupo_sel"] != "Todos" and "Linea de Producción" in df.columns:
     mask &= (df["Linea de Producción"] == filtros["grupo_sel"])
 
 df_vis = df[mask]
-_t2 = time.time()
-st.caption(f"⏱️ DEBUG filtrado: {_t2 - _t1:.2f}s")
 
 
 # ─────────────────────────────────────────────
