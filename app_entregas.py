@@ -145,6 +145,7 @@ COLS_MOSTRAR = [
     "Número de documento",
     "Número de artículo",
     "Descripción del artículo",
+    "Fecha de vencimiento",
     "Cantidad",
     "CantidadAtendida",
     "CantidadPendiente",
@@ -236,14 +237,12 @@ def detectar_st_relacionadas(df):
         return pd.DataFrame()
 
     resultado = merged.rename(columns={
-        "Número de artículo": "Número de artículo",
-        "Número de documento_pend": "ST sin atender",
-        "CantidadPendiente_pend": "Cant. pendiente (ST sin atender)",
-        "Número de documento_atend": "ST que sí se atendió",
-        "CantidadAtendida_atend": "Cant. atendida (ST hermana)",
-        "De código de almacén": "De almacén",
-        "Código de almacén": "A almacén",
-        "fecha_dia": "Fecha",
+        "Número de documento": "N° Documento",
+    "Número de artículo": "N° Artículo",
+    "Descripción del artículo": "Descripción",
+    "Fecha de vencimiento": "Fecha Vcto.",
+    "CantidadAtendida": "Atendida",
+    "CantidadPendiente": "Pendiente",
     })[[
         "Número de artículo", "ST sin atender", "Cant. pendiente (ST sin atender)",
         "ST que sí se atendió", "Cant. atendida (ST hermana)", "De almacén", "A almacén", "Fecha",
