@@ -340,7 +340,7 @@ st.markdown(
         <img src="data:image/jpeg;base64,{LOGO2_B64}" class="ma-header-logo">
         <div class="ma-header-text">
             <h1>Control de Entrega de Productos Terminados</h1>
-            <p>MARÍA ALMENARA · GESTIÓN DE TRANSFERENCIAS ENTRE ALMACENES</p>
+            <p>MA · GENERACIÓN DE SOLICITUDES DE TRASLADO</p>
         </div>
     </div>
     """,
