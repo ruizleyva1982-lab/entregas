@@ -72,6 +72,7 @@ def parse_fecha_segura(valor):
         return pd.NaT
 
 
+@st.cache_data(ttl=0, show_spinner=False)
 def detectar_st_relacionadas(df):
     """
     Detecta ST (Solicitudes de Transferencia) que aparentan no estar
@@ -82,6 +83,8 @@ def detectar_st_relacionadas(df):
     (por falta de stock físico) y luego se crea una nueva ST que sí
     se atiende. La primera queda con CantidadPendiente > 0 pero en
     realidad la necesidad ya fue cubierta por la segunda.
+
+    Versión vectorizada con merge (rápida incluso con ~200k filas).
     """
     cols_necesarias = [
         "Número de documento", "Número de artículo", "De código de almacén",
@@ -94,51 +97,45 @@ def detectar_st_relacionadas(df):
     base = df[cols_necesarias].copy()
     base = base.dropna(subset=["Fecha de contabilización"])
     base["fecha_dia"] = base["Fecha de contabilización"].dt.date
+    base["cantidad_r"] = base["Cantidad"].round(3)
 
-    # Clave de "misma necesidad": artículo + almacén origen + almacén destino + cantidad + día
-    base["clave"] = (
-        base["Número de artículo"].astype(str) + "|" +
-        base["De código de almacén"].astype(str) + "|" +
-        base["Código de almacén"].astype(str) + "|" +
-        base["Cantidad"].round(3).astype(str) + "|" +
-        base["fecha_dia"].astype(str)
+    claves = ["Número de artículo", "De código de almacén", "Código de almacén", "cantidad_r", "fecha_dia"]
+
+    no_atendidas = base[base["CantidadPendiente"] > 0]
+    atendidas = base[base["CantidadAtendida"] > 0]
+
+    if no_atendidas.empty or atendidas.empty:
+        return pd.DataFrame()
+
+    merged = no_atendidas.merge(
+        atendidas,
+        on=claves,
+        suffixes=("_pend", "_atend"),
     )
 
-    # ST no atendidas (pendiente > 0)
-    no_atendidas = base[base["CantidadPendiente"] > 0].copy()
-    if no_atendidas.empty:
+    # Quitar auto-match (la misma ST contra sí misma)
+    merged = merged[merged["Número de documento_pend"] != merged["Número de documento_atend"]]
+
+    if merged.empty:
         return pd.DataFrame()
 
-    # ST que sí fueron atendidas (sirven como "hermana que cubrió la necesidad")
-    atendidas = base[base["CantidadAtendida"] > 0].copy()
-    if atendidas.empty:
-        return pd.DataFrame()
+    resultado = merged.rename(columns={
+        "Número de artículo": "Número de artículo",
+        "Número de documento_pend": "ST sin atender",
+        "CantidadPendiente_pend": "Cant. pendiente (ST sin atender)",
+        "Número de documento_atend": "ST que sí se atendió",
+        "CantidadAtendida_atend": "Cant. atendida (ST hermana)",
+        "De código de almacén": "De almacén",
+        "Código de almacén": "A almacén",
+        "fecha_dia": "Fecha",
+    })[[
+        "Número de artículo", "ST sin atender", "Cant. pendiente (ST sin atender)",
+        "ST que sí se atendió", "Cant. atendida (ST hermana)", "De almacén", "A almacén", "Fecha",
+    ]]
 
-    alertas = []
-    for _, fila in no_atendidas.iterrows():
-        hermanas = atendidas[
-            (atendidas["clave"] == fila["clave"]) &
-            (atendidas["Número de documento"] != fila["Número de documento"])
-        ]
-        if not hermanas.empty:
-            for _, h in hermanas.iterrows():
-                alertas.append({
-                    "Número de artículo": fila["Número de artículo"],
-                    "ST sin atender": fila["Número de documento"],
-                    "Cant. pendiente (ST sin atender)": fila["CantidadPendiente"],
-                    "ST que sí se atendió": h["Número de documento"],
-                    "Cant. atendida (ST hermana)": h["CantidadAtendida"],
-                    "De almacén": fila["De código de almacén"],
-                    "A almacén": fila["Código de almacén"],
-                    "Fecha": fila["fecha_dia"],
-                })
+    return resultado.drop_duplicates(subset=["ST sin atender", "ST que sí se atendió"])
 
-    if not alertas:
-        return pd.DataFrame()
 
-    return pd.DataFrame(alertas).drop_duplicates(
-        subset=["ST sin atender", "ST que sí se atendió"]
-    )
 
 
 @st.cache_data(ttl=0, show_spinner=False)
@@ -172,6 +169,13 @@ def cargar_datos(_cache_key):
     for col in ["De código de almacén", "Código de almacén"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
+
+    # Pre-calcular columnas en mayúsculas para búsquedas rápidas (evita
+    # recalcular .str.upper() en cada filtro del usuario)
+    if "Número de artículo" in df.columns:
+        df["_busq_articulo"] = df["Número de artículo"].astype(str).str.upper()
+    if "Descripción del artículo" in df.columns:
+        df["_busq_descripcion"] = df["Descripción del artículo"].astype(str).str.upper()
 
     # ── Hoja2: líneas de producción ──
     try:
@@ -345,28 +349,32 @@ st.divider()
 # APLICAR FILTROS (usa lo guardado en session_state, NO los widgets en vivo)
 # ─────────────────────────────────────────────
 filtros = st.session_state.filtros_aplicados
-df_vis = df.copy()
+
+# Construir una sola máscara booleana vectorizada en lugar de
+# ir recortando el DataFrame paso a paso (mucho más rápido con
+# datasets grandes, ~200k filas).
+mask = pd.Series(True, index=df.index)
 
 if filtros["almacen_de"] != "Todos":
-    df_vis = df_vis[df_vis["De código de almacén"] == filtros["almacen_de"]]
+    mask &= (df["De código de almacén"] == filtros["almacen_de"])
 
 if filtros["almacen_a"] != "Todos":
-    df_vis = df_vis[df_vis["Código de almacén"] == filtros["almacen_a"]]
+    mask &= (df["Código de almacén"] == filtros["almacen_a"])
 
 if filtros["busqueda_texto"].strip():
     txt = filtros["busqueda_texto"].strip().upper()
-    df_vis = df_vis[df_vis[filtros["busqueda_tipo"]].astype(str).str.upper().str.contains(txt, na=False)]
+    col_busq = "_busq_articulo" if filtros["busqueda_tipo"] == "Número de artículo" else "_busq_descripcion"
+    mask &= df[col_busq].str.contains(txt, na=False, regex=False)
 
 if filtros["rango_fechas"] and len(filtros["rango_fechas"]) == 2:
     f_ini = pd.Timestamp(filtros["rango_fechas"][0])
     f_fin = pd.Timestamp(filtros["rango_fechas"][1]) + pd.Timedelta(hours=23, minutes=59, seconds=59)
-    df_vis = df_vis[
-        (df_vis["Fecha de vencimiento"] >= f_ini) &
-        (df_vis["Fecha de vencimiento"] <= f_fin)
-    ]
+    mask &= (df["Fecha de vencimiento"] >= f_ini) & (df["Fecha de vencimiento"] <= f_fin)
 
-if filtros["grupo_sel"] != "Todos" and "Linea de Producción" in df_vis.columns:
-    df_vis = df_vis[df_vis["Linea de Producción"] == filtros["grupo_sel"]]
+if filtros["grupo_sel"] != "Todos" and "Linea de Producción" in df.columns:
+    mask &= (df["Linea de Producción"] == filtros["grupo_sel"])
+
+df_vis = df[mask]
 
 
 # ─────────────────────────────────────────────
