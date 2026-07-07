@@ -224,6 +224,10 @@ def detectar_st_relacionadas(df):
     if no_atendidas.empty or atendidas.empty:
         return pd.DataFrame()
 
+    # El merge agrega sufijos _pend/_atend a TODAS las columnas que no
+    # forman parte de "claves" (on=), incluida "Número de documento",
+    # "Cantidad", "CantidadAtendida", "CantidadPendiente" y
+    # "Fecha de contabilización".
     merged = no_atendidas.merge(
         atendidas,
         on=claves,
@@ -236,21 +240,24 @@ def detectar_st_relacionadas(df):
     if merged.empty:
         return pd.DataFrame()
 
+    merged["CantidadPendiente_pend"] = merged["CantidadPendiente_pend"].round(3)
+    merged["CantidadAtendida_atend"] = merged["CantidadAtendida_atend"].round(3)
+
     resultado = merged.rename(columns={
-        "Número de documento": "N° Documento",
-    "Número de artículo": "N° Artículo",
-    "Descripción del artículo": "Descripción",
-    "Fecha de vencimiento": "Fecha Vcto.",
-    "CantidadAtendida": "Atendida",
-    "CantidadPendiente": "Pendiente",
+        "Número de artículo": "N° Artículo",
+        "Número de documento_pend": "ST sin atender",
+        "CantidadPendiente_pend": "Cant. pendiente (ST sin atender)",
+        "Número de documento_atend": "ST que sí se atendió",
+        "CantidadAtendida_atend": "Cant. atendida (ST hermana)",
+        "De código de almacén": "De almacén",
+        "Código de almacén": "A almacén",
+        "fecha_dia": "Fecha",
     })[[
-        "Número de artículo", "ST sin atender", "Cant. pendiente (ST sin atender)",
+        "N° Artículo", "ST sin atender", "Cant. pendiente (ST sin atender)",
         "ST que sí se atendió", "Cant. atendida (ST hermana)", "De almacén", "A almacén", "Fecha",
     ]]
 
     return resultado.drop_duplicates(subset=["ST sin atender", "ST que sí se atendió"])
-
-
 
 
 @st.cache_data(show_spinner=False)
@@ -317,10 +324,12 @@ if "ultima_actualizacion" not in st.session_state:
     st.session_state.ultima_actualizacion = None
 
 # Filtros aplicados (se actualizan solo al presionar "Aplicar filtros")
+# Nota: "almacen_de" y "almacen_a" ahora son LISTAS (multiselect).
+# Lista vacía = sin filtro = "todos los almacenes".
 if "filtros_aplicados" not in st.session_state:
     st.session_state.filtros_aplicados = {
-        "almacen_de": "Todos",
-        "almacen_a": "Todos",
+        "almacen_de": [],
+        "almacen_a": [],
         "grupo_sel": "Todos",
         "busqueda_tipo": "Número de artículo",
         "busqueda_texto": "",
@@ -380,27 +389,29 @@ st.divider()
 # (no se aplica nada hasta presionar "Aplicar filtros")
 # ─────────────────────────────────────────────
 with st.form("filtros_form"):
-    # Fila 1: almacenes + línea de producción
+    # Fila 1: almacenes (multiselect) + línea de producción
     c1, c2, c3 = st.columns([2, 2, 2])
 
     with c1:
         almacenes_origen = sorted(df["De código de almacén"].dropna().unique().tolist(), key=str)
-        almacen_de_input = st.selectbox(
+        default_de = [v for v in st.session_state.filtros_aplicados["almacen_de"] if v in almacenes_origen]
+        almacen_de_input = st.multiselect(
             "🏭 De almacén (origen)",
-            ["Todos"] + almacenes_origen,
-            index=(["Todos"] + almacenes_origen).index(st.session_state.filtros_aplicados["almacen_de"])
-                  if st.session_state.filtros_aplicados["almacen_de"] in (["Todos"] + almacenes_origen) else 0,
+            options=almacenes_origen,
+            default=default_de,
+            placeholder="Todos (vacío = todos)",
         )
 
     with c2:
         # Nota: el listado de destino se calcula sobre TODO el df (no sobre el filtro de origen
         # todavía no aplicado), para evitar que cambie antes de presionar el botón.
         almacenes_destino = sorted(df["Código de almacén"].dropna().unique().tolist(), key=str)
-        almacen_a_input = st.selectbox(
+        default_a = [v for v in st.session_state.filtros_aplicados["almacen_a"] if v in almacenes_destino]
+        almacen_a_input = st.multiselect(
             "📍 A almacén (destino)",
-            ["Todos"] + almacenes_destino,
-            index=(["Todos"] + almacenes_destino).index(st.session_state.filtros_aplicados["almacen_a"])
-                  if st.session_state.filtros_aplicados["almacen_a"] in (["Todos"] + almacenes_destino) else 0,
+            options=almacenes_destino,
+            default=default_a,
+            placeholder="Todos (vacío = todos)",
         )
 
     with c3:
@@ -475,11 +486,12 @@ filtros = st.session_state.filtros_aplicados
 # datasets grandes, ~200k filas).
 mask = pd.Series(True, index=df.index)
 
-if filtros["almacen_de"] != "Todos":
-    mask &= (df["De código de almacén"] == filtros["almacen_de"])
+# Lista vacía = sin filtro = todos los almacenes
+if filtros["almacen_de"]:
+    mask &= df["De código de almacén"].isin(filtros["almacen_de"])
 
-if filtros["almacen_a"] != "Todos":
-    mask &= (df["Código de almacén"] == filtros["almacen_a"])
+if filtros["almacen_a"]:
+    mask &= df["Código de almacén"].isin(filtros["almacen_a"])
 
 if filtros["busqueda_texto"].strip():
     txt = filtros["busqueda_texto"].strip().upper()
