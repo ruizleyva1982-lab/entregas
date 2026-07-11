@@ -16,169 +16,132 @@ st.markdown("""
     <style>
     .main-title { font-size:32px; font-weight:bold; color:#1E3A8A; margin-bottom:5px; }
     .subtitle { font-size:16px; color:#4B5563; margin-bottom:25px; }
-    .metric-box { padding: 15px; background-color: #F3F4F6; border-radius: 10px; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
     </style>
 """, unsafe_allow_html=True)
 
-# Encabezado Principal
 st.markdown('<div class="main-title">📦 Dashboard de Solicitudes de Traslado (SAP B1)</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Monitoreo en tiempo real de inventario regular, intermedios y materias primas en tránsito.</div>', unsafe_allow_html=True)
 
-# URL de Google Sheets en formato CSV (reemplaza con tu enlace publicado)
-# Para pruebas, el usuario puede pegar su propio enlace en la barra lateral
 st.sidebar.header("🔗 Configuración de Datos")
 gsheet_url = st.sidebar.text_input(
     "Enlace de Google Sheets (CSV publicado):",
     placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
 )
 
-# Función para cargar datos con caché para alta velocidad
-@st.cache_data(ttl=60)  # Se actualiza cada 60 segundos si cambias la data
+# Función para limpiar texto y evitar problemas de acentos/espacios
+def clean_column_name(col):
+    return str(col).strip().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+
+@st.cache_data(ttl=60)
 def load_data(url):
     try:
-        df = pd.read_csv(url)
-        # Limpieza y conversión de tipos de datos
-        df['Fecha de vencimiento'] = pd.to_datetime(df['Fecha de vencimiento'], errors='coerce').dt.date
-        df['De código de almacén'] = df['De código de almacén'].astype(str).str.replace(r'\.0$', '', regex=True)
-        df['Código de almacén'] = df['Código de almacén'].astype(str).str.replace(r'\.0$', '', regex=True)
-        df['Número de documento'] = df['Número de documento'].astype(str)
-        df['Número de artículo'] = df['Número de artículo'].astype(str)
+        # Forzar lectura como texto para evitar pérdida de ceros a la izquierda
+        df = pd.read_csv(url, dtype=str)
         
-        # Llenar nulos en cantidades numéricas
-        df['Cantidad'] = pd.to_numeric(df['Cantidad'], errors='coerce').fillna(0)
-        df['CantidadAtendida'] = pd.to_numeric(df['CantidadAtendida'], errors='coerce').fillna(0)
-        df['CantidadPendiente'] = pd.to_numeric(df['CantidadPendiente'], errors='coerce').fillna(0)
+        # Normalizar nombres de columnas (limpiar espacios y acentos)
+        df.columns = [clean_column_name(c) for c in df.columns]
         
+        # Mapeo de columnas esperadas a lo que pueda venir en el CSV
+        column_mapping = {
+            'De codigo de almacen': ['De código de almacén', 'De codigo de almacen', 'De codigo almacen'],
+            'Codigo de almacen': ['Código de almacén', 'Codigo de almacen', 'Codigo almacen'],
+            'Fecha de vencimiento': ['Fecha de vencimiento', 'Fecha vencimiento'],
+            'Numero de articulo': ['Número de artículo', 'Numero de articulo', 'Numero articulo', 'Articulo'],
+            'Descripcion del articulo': ['Descripción del artículo', 'Descripcion del articulo', 'Descripcion articulo', 'Descripcion'],
+            'Numero de documento': ['Número de documento', 'Numero de documento', 'Numero documento', 'Documento'],
+            'Cantidad': ['Cantidad'],
+            'CantidadAtendida': ['CantidadAtendida', 'Cantidad Atendida'],
+            'CantidadPendiente': ['CantidadPendiente', 'Cantidad Pendiente']
+        }
+        
+        # Renombrar dinámicamente si encuentra alguna coincidencia
+        for key, alternatives in column_mapping.items():
+            for alt in alternatives:
+                alt_clean = clean_column_name(alt)
+                if alt_clean in df.columns and alt_clean != key:
+                    df = df.rename(columns={alt_clean: key})
+                    break
+
+        # Conversión de Fechas de forma segura
+        if 'Fecha de vencimiento' in df.columns:
+            df['Fecha de vencimiento'] = pd.to_datetime(df['Fecha de vencimiento'], errors='coerce').dt.date
+        else:
+            df['Fecha de vencimiento'] = datetime.today().date()
+
+        # Limpieza de códigos de almacén para quitar decimales como '.0'
+        for col in ['De codigo de almacen', 'Codigo de almacen']:
+            if col in df.columns:
+                df[col] = df[col].fillna('').astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+
+        # Asegurar tipos numéricos para las cantidades
+        for col in ['Cantidad', 'CantidadAtendida', 'CantidadPendiente']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            else:
+                df[col] = 0.0
+                
         return df
     except Exception as e:
-        st.error(f"Error al conectar con Google Sheets: {e}")
+        st.error(f"Error al procesar los datos: {e}")
         return None
 
-# Validar si se ha ingresado una URL
 if gsheet_url:
     df_raw = load_data(gsheet_url)
     
     if df_raw is not None:
-        # ==================== BLOQUE DE FILTROS EN LA BARRA LATERAL ====================
         st.sidebar.header("🔍 Filtros de Búsqueda")
         
-        # 1. Filtro de Fechas (Fecha de Vencimiento)
-        min_date = df_raw['Fecha de vencimiento'].min() if not df_raw['Fecha de vencimiento'].dropna().empty else datetime.today().date()
-        max_date = df_raw['Fecha de vencimiento'].max() if not df_raw['Fecha de vencimiento'].dropna().empty else datetime.today().date()
+        # 1. Filtro de Fechas seguro
+        dates_valid = df_raw['Fecha de vencimiento'].dropna()
+        min_date = dates_valid.min() if not dates_valid.empty else datetime.today().date()
+        max_date = dates_valid.max() if not dates_valid.empty else datetime.today().date()
         
-        date_range = st.sidebar.date_input(
-            "Fecha de vencimiento (Rango):",
-            value=(min_date, max_date),
-            min_value=min_date,
-            max_value=max_date
-        )
+        if min_date == max_date:
+            st.sidebar.info(f"Fecha única detectada: {min_date}")
+            date_range = (min_date, max_date)
+        else:
+            date_range = st.sidebar.date_input("Fecha de vencimiento (Rango):", value=(min_date, max_date))
         
-        # 2. Filtros de Almacenes (Multiselect)
-        almacenes_origen = sorted(df_raw['De código de almacén'].unique())
+        # 2. Filtros de Almacenes
+        almacenes_origen = sorted([x for x in df_raw['De codigo de almacen'].unique() if x]) if 'De codigo de almacen' in df_raw.columns else []
         selected_origen = st.sidebar.multiselect("De código de almacén:", almacenes_origen, default=almacenes_origen)
         
-        almacenes_destino = sorted(df_raw['Código de almacén'].unique())
+        almacenes_destino = sorted([x for x in df_raw['Codigo de almacen'].unique() if x]) if 'Codigo de almacen' in df_raw.columns else []
         selected_destino = st.sidebar.multiselect("Código de almacén (Destino):", almacenes_destino, default=almacenes_destino)
         
-        # 3. Filtro por Artículo o Descripción (Texto libre)
+        # 3. Filtro por Artículo o Descripción
         search_query = st.sidebar.text_input("Buscar por Código o Descripción de Artículo:").strip().lower()
         
-        # ==================== APLICACIÓN DE FILTROS ====================
+        # --- Aplicar Filtros ---
         df_filtered = df_raw.copy()
         
-        # Filtrar fechas
         if len(date_range) == 2:
-            start_date, end_date = date_range
-            df_filtered = df_filtered[(df_filtered['Fecha de vencimiento'] >= start_date) & (df_filtered['Fecha de vencimiento'] <= end_date)]
+            df_filtered = df_filtered[(df_filtered['Fecha de vencimiento'] >= date_range[0]) & (df_filtered['Fecha de vencimiento'] <= date_range[1])]
             
-        # Filtrar almacenes
-        df_filtered = df_filtered[df_filtered['De código de almacén'].isin(selected_origen)]
-        df_filtered = df_filtered[df_filtered['Código de almacén'].isin(selected_destino)]
-        
-        # Filtrar por texto (Código o Descripción)
+        if selected_origen:
+            df_filtered = df_filtered[df_filtered['De codigo de almacen'].isin(selected_origen)]
+        if selected_destino:
+            df_filtered = df_filtered[df_filtered['Codigo de almacen'].isin(selected_destino)]
+            
         if search_query:
-            df_filtered = df_filtered[
-                df_filtered['Número de artículo'].str.lower().str.contains(search_query) |
-                df_filtered['Descripción del artículo'].str.lower().str.contains(search_query)
-            ]
+            cond_art = df_filtered['Numero de articulo'].astype(str).str.lower().str.contains(search_query) if 'Numero de articulo' in df_filtered.columns else False
+            cond_desc = df_filtered['Descripcion del articulo'].astype(str).str.lower().str.contains(search_query) if 'Descripcion del articulo' in df_filtered.columns else False
+            df_filtered = df_filtered[cond_art | cond_desc]
             
-        # ==================== SECCIÓN DE VISTA / MÉTRICAS ====================
-        # Columnas solicitadas específicas para la tabla final
-        target_columns = [
-            'Número de documento', 'Fecha de vencimiento', 'Número de artículo', 
-            'Descripción del artículo', 'Cantidad', 'CantidadAtendida', 'CantidadPendiente'
-        ]
+        # --- Despliegue de Columnas Solicitadas ---
+        target_columns = {
+            'Numero de documento': 'N° Documento',
+            'Fecha de vencimiento': 'F. Vencimiento',
+            'Numero de articulo': 'Código Artículo',
+            'Descripcion del articulo': 'Descripción',
+            'Cantidad': 'Cant. Solicitada',
+            'CantidadAtendida': 'Cant. Atendida',
+            'CantidadPendiente': 'Cant. Pendiente'
+        }
         
-        # Aseguramos que existan todas las columnas antes de mostrar
-        df_display = df_filtered[[col for col in target_columns if col in df_filtered.columns]]
+        # Filtrar solo columnas existentes y renombrar para mostrar limpio
+        cols_to_use = [c for c in target_columns.keys() if c in df_filtered.columns]
+        df_display = df_filtered[cols_to_use].rename(columns={c: target_columns[c] for c in cols_to_use})
         
-        # Fila de KPIs rápidos
+        # KPIs rápidos
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        with kpi1:
-            st.metric("Total Solicitudes", f"{df_display['Número de documento'].nunique()} uds")
-        with kpi2:
-            st.metric("Suma Cantidad Solicitada", f"{df_display['Cantidad'].sum():,.2f}")
-        with kpi3:
-            st.metric("Suma Cantidad Atendida", f"{df_display['CantidadAtendida'].sum():,.2f}", delta_color="normal")
-        with kpi4:
-            st.metric("Suma Cantidad Pendiente", f"{df_display['CantidadPendiente'].sum():,.2f}", delta=f"-{df_display['CantidadPendiente'].sum():,.2f}", delta_color="inverse")
-            
-        st.write("---")
-        
-        # ==================== TABLA PRINCIPAL DE DATOS ====================
-        st.subheader(f"📊 Registros Filtrados ({len(df_display)} filas)")
-        
-        # Mostrar tabla interactiva con estilos de números integrados en Streamlit
-        st.dataframe(
-            df_display,
-            column_config={
-                "Número de documento": st.column_config.TextColumn("N° Documento"),
-                "Fecha de vencimiento": st.column_config.DateColumn("F. Vencimiento", format="YYYY-MM-DD"),
-                "Número de artículo": st.column_config.TextColumn("Código Artículo"),
-                "Descripción del artículo": st.column_config.TextColumn("Descripción"),
-                "Cantidad": st.column_config.NumberColumn("Cant. Solicitada", format="%.2f"),
-                "CantidadAtendida": st.column_config.NumberColumn("Cant. Atendida", format="%.2f"),
-                "CantidadPendiente": st.column_config.NumberColumn("Cant. Pendiente", format="%.2f"),
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-        
-        # ==================== GRÁFICOS COMPLEMENTARIOS (¡Monstruosa!) ====================
-        st.write("---")
-        st.subheader("📈 Análisis de Carga por Almacén y Artículo")
-        
-        g1, g2 = st.columns(2)
-        
-        with g1:
-            if not df_filtered.empty and 'De código de almacén' in df_filtered.columns:
-                fig_almacen = px.bar(
-                    df_filtered.groupby('De código de almacén')[['Cantidad', 'CantidadAtendida']].sum().reset_index(),
-                    x='De código de almacén',
-                    y=['Cantidad', 'CantidadAtendida'],
-                    barmode='group',
-                    title='Volumen de Traslado por Almacén de Origen',
-                    labels={'value': 'Kilos / Unidades', 'De código de almacén': 'Almacén Origen'},
-                    color_discrete_sequence=['#1E3A8A', '#10B981']
-                )
-                st.plotly_chart(fig_almacen, use_container_width=True)
-                
-        with g2:
-            if not df_display.empty:
-                top_articles = df_display.groupby('Descripción del artículo')['Cantidad'].sum().nlargest(10).reset_index()
-                fig_articles = px.bar(
-                    top_articles,
-                    y='Descripción del artículo',
-                    x='Cantidad',
-                    orientation='h',
-                    title='Top 10 Artículos Más Solicitados',
-                    labels={'Cantidad': 'Total Solicitado', 'Descripción del artículo': 'Artículo'},
-                    color_discrete_sequence=['#3B82F6']
-                )
-                fig_articles.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_articles, use_container_width=True)
-                
-    else:
-        st.warning("La estructura del archivo cargado no es válida o está vacía.")
-else:
-    st.info("💡 Por favor, ingresa el enlace CSV de tu Google Sheet publicado en la barra lateral para empezar a visualizar los datos.")
