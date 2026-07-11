@@ -363,12 +363,11 @@ with col_boton:
         st.session_state.cache_key += 1
         cargar_datos.clear()
 st.markdown(
-    f"""
+    """
     <div class="ma-header">
-        <img src="data:image/jpeg;base64,{LOGO2_B64}" class="ma-header-logo">
         <div class="ma-header-text">
-            <h1>Control de Entrega de Productos Terminados</h1>
-            <p>MA · GENERACIÓN DE SOLICITUDES DE TRASLADO</p>
+            <h1>🍰 Control de Entrega de Productos Terminados</h1>
+            <p>MARÍA ALMENARA · GESTIÓN DE TRANSFERENCIAS ENTRE ALMACENES</p>
         </div>
     </div>
     """,
