@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""    
+st.markdown("""
     <style>
     .main-title { font-size:32px; font-weight:bold; color:#1E3A8A; margin-bottom:5px; }
     .subtitle { font-size:16px; color:#4B5563; margin-bottom:25px; }
@@ -21,30 +21,27 @@ st.markdown("""
 st.markdown('<div class="main-title">📦 Dashboard de Solicitudes de Traslado (SAP B1)</div>', unsafe_allow_html=True)
 
 st.sidebar.header("🔗 Configuración de Datos")
+
+# Enlace fijo por defecto para que cargue directo
+default_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotfV/pub?gid=420751890&single=true&output=csv"
+
 gsheet_url = st.sidebar.text_input(
     "Enlace de Google Sheets (CSV publicado):",
-    value="https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
+    value=default_url
 )
 
-# Función para limpiar texto y evitar problemas de acentos/espacios
 def clean_column_name(col):
     return str(col).strip().lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
 
-@st.cache_data(ttl=10) # Cache bajo para pruebas rápidas
+@st.cache_data(ttl=30)
 def load_data(url):
     try:
-        # Leer todo como string originalmente para no perder datos
         df = pd.read_csv(url, dtype=str)
-        
-        # Guardar nombres originales para mapeo
         original_cols = list(df.columns)
-        
-        # Limpiar nombres de columnas
         df.columns = [clean_column_name(c) for c in df.columns]
         
-        # Mapeo flexible
         mapping = {
-            'de codigo de almacen': ['de codigo de almacen', 'de codigo almacen', 'almacen origen', 'almacen de origen', 'de almacen'],
+            'de codigo de almacen': ['de codigo de almacen', 'de codigo almacen', 'almacen origen', 'de almacen'],
             'codigo de almacen': ['codigo de almacen', 'codigo almacen', 'almacen destino', 'almacen', 'a almacen'],
             'fecha de vencimiento': ['fecha de vencimiento', 'fecha vencimiento', 'f. vencimiento', 'vencimiento'],
             'numero de articulo': ['numero de articulo', 'numero articulo', 'articulo', 'codigo articulo', 'itemcode'],
@@ -56,8 +53,6 @@ def load_data(url):
         }
         
         final_df = pd.DataFrame()
-        
-        # Buscar y asignar columnas de forma flexible
         for de_col, alts in mapping.items():
             found = False
             for alt in alts:
@@ -67,23 +62,18 @@ def load_data(url):
                     found = True
                     break
             if not found:
-                # Si no la encuentra, crearla vacía o con ceros para que no rompa la app
                 if de_col in ['cantidad', 'cantidadatendida', 'cantidadpendiente']:
                     final_df[de_col] = 0.0
                 else:
                     final_df[de_col] = ""
                     
-        # Conversión de tipos de datos de forma segura
         final_df['cantidad'] = pd.to_numeric(final_df['cantidad'], errors='coerce').fillna(0)
         final_df['cantidadatendida'] = pd.to_numeric(final_df['cantidadatendida'], errors='coerce').fillna(0)
         final_df['cantidadpendiente'] = pd.to_numeric(final_df['cantidadpendiente'], errors='coerce').fillna(0)
         
-        # Limpieza de almacenes (.0)
         final_df['de codigo de almacen'] = final_df['de codigo de almacen'].fillna('').astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
         final_df['codigo de almacen'] = final_df['codigo de almacen'].fillna('').astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
         
-        # Intentar convertir fecha de manera inteligente
-        final_df['fecha_original'] = final_df['fecha de vencimiento']
         final_df['fecha de vencimiento'] = pd.to_datetime(final_df['fecha de vencimiento'], errors='coerce').dt.date
         
         return final_df, original_cols
@@ -95,37 +85,28 @@ if gsheet_url:
     df_raw, columnas_detectadas = load_data(gsheet_url)
     
     if df_raw is not None and not df_raw.empty:
-        # SECCIÓN DE DIAGNÓSTICO EN CASO DE TABLA VACÍA
-        with st.expander("🔍 Ver columnas leídas desde Google Sheets (Uso técnico si no ves datos)"):
-            st.write("Columnas encontradas en tu archivo original:", columnas_detectadas)
-            st.write("Muestra de datos sin filtrar:", df_raw.head(3))
+        with st.expander("🔍 Ver columnas leídas desde Google Sheets (Uso técnico)"):
+            st.write("Columnas encontradas:", columnas_detectadas)
+            st.write("Muestra de datos:", df_raw.head(3))
             
         st.sidebar.header("🔍 Filtros de Búsqueda")
         
-        # 1. Filtro de Fechas con switch para apagarlo si causa problemas
         usar_filtro_fecha = st.sidebar.checkbox("Filtrar por Rango de Fechas", value=False)
-        
         dates_valid = df_raw['fecha de vencimiento'].dropna()
         min_date = dates_valid.min() if not dates_valid.empty else datetime.today().date()
         max_date = dates_valid.max() if not dates_valid.empty else datetime.today().date()
         
         if usar_filtro_fecha:
-            if min_date == max_date:
-                date_range = (min_date, max_date)
-            else:
-                date_range = st.sidebar.date_input("Rango de fechas:", value=(min_date, max_date))
+            date_range = st.sidebar.date_input("Rango de fechas:", value=(min_date, max_date))
         
-        # 2. Filtros de Almacenes
         almacenes_origen = sorted(list(set([x for x in df_raw['de codigo de almacen'].unique() if x])))
         selected_origen = st.sidebar.multiselect("De código de almacén:", almacenes_origen, default=almacenes_origen)
         
         almacenes_destino = sorted(list(set([x for x in df_raw['codigo de almacen'].unique() if x])))
         selected_destino = st.sidebar.multiselect("Código de almacén (Destino):", almacenes_destino, default=almacenes_destino)
         
-        # 3. Filtro de texto
         search_query = st.sidebar.text_input("Buscar por Artículo o Descripción:").strip().lower()
         
-        # --- PROCESO DE FILTRADO ---
         df_filtered = df_raw.copy()
         
         if usar_filtro_fecha and len(date_range) == 2:
@@ -141,7 +122,6 @@ if gsheet_url:
             cond_desc = df_filtered['descripcion del articulo'].astype(str).str.lower().str.contains(search_query)
             df_filtered = df_filtered[cond_art | cond_desc]
             
-        # --- PREPARAR INTERFAZ ---
         target_columns = {
             'numero de documento': 'Número de documento',
             'fecha de vencimiento': 'Fecha de vencimiento',
@@ -154,7 +134,6 @@ if gsheet_url:
         
         df_display = df_filtered[list(target_columns.keys())].rename(columns=target_columns)
         
-        # KPIs
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         with kpi1:
             st.metric("Total Documentos", f"{df_filtered['numero de documento'].nunique()} uds")
@@ -168,8 +147,30 @@ if gsheet_url:
         st.write("---")
         
         st.subheader(f"📊 Registros Filtrados ({len(df_display)} filas)")
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        st.dataframe(df_display, width="stretch", hide_index=True)
         
+        st.write("---")
+        st.subheader("📈 Análisis Gráfico de Carga")
+        g1, g2 = st.columns(2)
+        
+        with g1:
+            if not df_filtered.empty and 'de codigo de almacen' in df_filtered.columns:
+                fig_almacen = px.bar(
+                    df_filtered.groupby('de codigo de almacen')[['cantidad', 'cantidadatendida']].sum().reset_index(),
+                    x='de codigo de almacen', y=['cantidad', 'cantidadatendida'], barmode='group',
+                    title='Volumen por Almacén de Origen', color_discrete_sequence=['#1E3A8A', '#10B981']
+                )
+                st.plotly_chart(fig_almacen, width="stretch")
+                
+        with g2:
+            if not df_filtered.empty and 'descripcion del articulo' in df_filtered.columns:
+                top_articles = df_filtered.groupby('descripcion del articulo')['cantidad'].sum().nlargest(10).reset_index()
+                fig_articles = px.bar(
+                    top_articles, y='descripcion del articulo', x='cantidad', orientation='h',
+                    title='Top 10 Artículos Más Solicitados', color_discrete_sequence=['#3B82F6']
+                )
+                fig_articles.update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig_articles, width="stretch")
     else:
         st.warning("El archivo conectado está vacío o no contiene filas de datos.")
 else:
