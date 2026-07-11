@@ -377,7 +377,7 @@ with col_ts:
         ts = st.session_state.ultima_actualizacion.strftime("%d/%m/%Y %H:%M:%S")
         st.caption(f"🕒 Última actualización: **{ts}** (hora Lima)")
 with col_boton:
-    if st.button("🔄 Recargar datos", use_container_width=True, type="primary"):
+    if st.button("🔄 Recargar datos", width="stretch", type="primary"):
         st.session_state.cache_key += 1
         cargar_datos.clear()
 
@@ -388,63 +388,47 @@ st.divider()
 # FILTROS EN PÁGINA — DENTRO DE UN FORM
 # (no se aplica nada hasta presionar "Aplicar filtros")
 # ─────────────────────────────────────────────
-with st.form("filtros_form"):
-    # Fila 1: almacenes (multiselect) + línea de producción
+# ── Filtros sin st.form (evita memory leak con datasets grandes) ──
+with st.container():
     c1, c2, c3 = st.columns([2, 2, 2])
-
     with c1:
         almacenes_origen = sorted(df["De código de almacén"].dropna().unique().tolist(), key=str)
         default_de = [v for v in st.session_state.filtros_aplicados["almacen_de"] if v in almacenes_origen]
         almacen_de_input = st.multiselect(
-            "🏭 De almacén (origen)",
-            options=almacenes_origen,
-            default=default_de,
-            placeholder="Todos (vacío = todos)",
+            "🏭 De almacén (origen)", options=almacenes_origen,
+            default=default_de, placeholder="Todos (vacío = todos)", key="w_almacen_de",
         )
-
     with c2:
-        # Nota: el listado de destino se calcula sobre TODO el df (no sobre el filtro de origen
-        # todavía no aplicado), para evitar que cambie antes de presionar el botón.
         almacenes_destino = sorted(df["Código de almacén"].dropna().unique().tolist(), key=str)
         default_a = [v for v in st.session_state.filtros_aplicados["almacen_a"] if v in almacenes_destino]
         almacen_a_input = st.multiselect(
-            "📍 A almacén (destino)",
-            options=almacenes_destino,
-            default=default_a,
-            placeholder="Todos (vacío = todos)",
+            "📍 A almacén (destino)", options=almacenes_destino,
+            default=default_a, placeholder="Todos (vacío = todos)", key="w_almacen_a",
         )
-
     with c3:
         if "Linea de Producción" in df.columns:
             grupos = ["Todos"] + sorted([x for x in df["Linea de Producción"].dropna().unique().tolist() if str(x).strip()], key=str)
             grupo_sel_input = st.selectbox(
-                "🏭 Línea de producción",
-                grupos,
+                "🏭 Línea de producción", grupos, key="w_grupo",
                 index=grupos.index(st.session_state.filtros_aplicados["grupo_sel"])
                       if st.session_state.filtros_aplicados["grupo_sel"] in grupos else 0,
             )
         else:
             grupo_sel_input = "Todos"
 
-    # Fila 2: búsqueda + fechas
     c4, c5, c6 = st.columns([1.5, 2, 2])
-
     with c4:
         opciones_busqueda = ["Número de artículo", "Descripción del artículo"]
         busqueda_tipo_input = st.radio(
-            "🔍 Buscar por",
-            opciones_busqueda,
-            horizontal=True,
+            "🔍 Buscar por", opciones_busqueda, horizontal=True, key="w_busq_tipo",
             index=opciones_busqueda.index(st.session_state.filtros_aplicados["busqueda_tipo"]),
         )
-
     with c5:
         busqueda_texto_input = st.text_input(
-            "Texto a buscar",
+            "Texto a buscar", key="w_busq_texto",
             value=st.session_state.filtros_aplicados["busqueda_texto"],
             placeholder="Ej: P1600254 o NARANJA",
         )
-
     with c6:
         fechas_validas = df["Fecha de vencimiento"].dropna()
         if not fechas_validas.empty:
@@ -454,28 +438,26 @@ with st.form("filtros_form"):
             col_f1, col_f2 = st.columns(2)
             with col_f1:
                 f_desde = st.text_input(
-                    "📅 Desde (DD/MM/YYYY)",
+                    "📅 Desde (DD/MM/YYYY)", key="w_fecha_desde",
                     value=prev[0].strftime("%d/%m/%Y") if prev else fecha_min.strftime("%d/%m/%Y"),
                 )
             with col_f2:
                 f_hasta = st.text_input(
-                    "Hasta (DD/MM/YYYY)",
+                    "Hasta (DD/MM/YYYY)", key="w_fecha_hasta",
                     value=prev[1].strftime("%d/%m/%Y") if prev else fecha_max.strftime("%d/%m/%Y"),
                 )
             try:
-                from datetime import datetime
+                from datetime import datetime as _dt2
                 rango_fechas_input = (
-                    datetime.strptime(f_desde, "%d/%m/%Y").date(),
-                    datetime.strptime(f_hasta, "%d/%m/%Y").date(),
+                    _dt2.strptime(f_desde, "%d/%m/%Y").date(),
+                    _dt2.strptime(f_hasta, "%d/%m/%Y").date(),
                 )
             except ValueError:
                 rango_fechas_input = (fecha_min, fecha_max)
         else:
             rango_fechas_input = None
 
-    aplicar = st.form_submit_button("✅ Aplicar filtros", type="primary", use_container_width=False)
-
-    if aplicar:
+    if st.button("✅ Aplicar filtros", type="primary", key="btn_aplicar"):
         st.session_state.filtros_aplicados = {
             "almacen_de": almacen_de_input,
             "almacen_a": almacen_a_input,
@@ -484,7 +466,7 @@ with st.form("filtros_form"):
             "busqueda_texto": busqueda_texto_input,
             "rango_fechas": rango_fechas_input,
         }
-
+        st.rerun()
 st.divider()
 
 
@@ -512,7 +494,7 @@ if filtros["busqueda_texto"].strip():
 
 if filtros["rango_fechas"] and len(filtros["rango_fechas"]) == 2:
     f_ini = pd.Timestamp(filtros["rango_fechas"][0])
-    f_fin = pd.Timestamp(filtros["rango_fechas"][1]) + pd.Timedelta(hours=23, minutes=59, seconds=59)
+    f_fin = pd.Timestamp(filtros["rango_fechas"][1]) + pd.Timedelta(seconds=86399)
     mask &= (df["Fecha de vencimiento"] >= f_ini) & (df["Fecha de vencimiento"] <= f_fin)
 
 if filtros["grupo_sel"] != "Todos" and "Linea de Producción" in df.columns:
@@ -546,7 +528,7 @@ if df_tabla.empty:
 else:
     st.dataframe(
         df_tabla,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=520,
         column_config={
@@ -585,7 +567,7 @@ with st.expander("📊 Resumen agrupado por artículo"):
             grp[c] = grp[c].round(3)
         st.dataframe(
             grp,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "Cantidad":  st.column_config.NumberColumn(format="%.3f"),
@@ -618,7 +600,7 @@ with st.expander("⚠️ ST posiblemente duplicadas o ya cubiertas"):
         st.warning(f"Se encontraron {len(alertas_df)} posible(s) caso(s).")
         st.dataframe(
             alertas_df,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "Cant. pendiente (ST sin atender)": st.column_config.NumberColumn(format="%.3f"),
