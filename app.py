@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
+st.markdown("""    
     <style>
     .main-title { font-size:32px; font-weight:bold; color:#1E3A8A; margin-bottom:5px; }
     .subtitle { font-size:16px; color:#4B5563; margin-bottom:25px; }
@@ -23,7 +23,7 @@ st.markdown('<div class="main-title">📦 Dashboard de Solicitudes de Traslado (
 st.sidebar.header("🔗 Configuración de Datos")
 gsheet_url = st.sidebar.text_input(
     "Enlace de Google Sheets (CSV publicado):",
-    value="https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotfV/pub?gid=420751890&single=true&output=csv"
+    value="https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 )
 
 # Función para limpiar texto y evitar problemas de acentos/espacios
