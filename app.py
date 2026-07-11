@@ -3,6 +3,9 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 
+# Enlace fijo por defecto (DEFINIDO AL INICIO PARA EVITAR EL ERROR)
+default_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotfV/pub?gid=420751890&single=true&output=csv"
+
 # Configuración de la página
 st.set_page_config(
     page_title="Control de Traslados - SAP B1",
@@ -22,9 +25,7 @@ st.markdown('<div class="main-title">📦 Dashboard de Solicitudes de Traslado (
 
 st.sidebar.header("🔗 Configuración de Datos")
 
-# Enlace fijo por defecto
-default_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotfV/pub?gid=420751890&single=true&output=csv"
-
+# Cuadro de texto que usa la variable ya definida arriba
 gsheet_url = st.sidebar.text_input(
     "Enlace de Google Sheets (CSV publicado):",
     value=default_url
@@ -36,7 +37,6 @@ def clean_column_name(col):
 def clean_numeric_string(val):
     if pd.isna(val):
         return 0.0
-    # Quitar comas de miles si existen y limpiar espacios
     clean_val = str(val).replace(',', '').strip()
     return clean_val
 
@@ -46,7 +46,6 @@ def load_data(url):
         df = pd.read_csv(url, dtype=str)
         original_cols = list(df.columns)
         
-        # Limpiar nombres de columnas convirtiendo guiones bajos a espacios
         df.columns = [clean_column_name(c) for c in df.columns]
         
         mapping = {
@@ -57,8 +56,8 @@ def load_data(url):
             'descripcion del articulo': ['descripcion del articulo', 'descripcion articulo', 'descripcion'],
             'numero de documento': ['numero de documento', 'numero documento', 'documento'],
             'cantidad': ['cantidad', 'cant'],
-            'cantidadatendida': ['cantidadatendida', 'cantidad atendida', 'cantidad atendida'],
-            'cantidadpendiente': ['cantidadpendiente', 'cantidad pendiente', 'cantidad pendiente']
+            'cantidadatendida': ['cantidadatendida', 'cantidad atendida'],
+            'cantidadpendiente': ['cantidadpendiente', 'cantidad pendiente']
         }
         
         final_df = pd.DataFrame()
@@ -76,16 +75,13 @@ def load_data(url):
                 else:
                     final_df[de_col] = ""
                     
-        # Limpieza y conversión numérica removiendo comas de miles
         for num_col in ['cantidad', 'cantidadatendida', 'cantidadpendiente']:
             final_df[num_col] = final_df[num_col].apply(clean_numeric_string)
             final_df[num_col] = pd.to_numeric(final_df[num_col], errors='coerce').fillna(0.0)
         
-        # Limpieza de almacenes (.0)
         final_df['de codigo de almacen'] = final_df['de codigo de almacen'].fillna('').astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
         final_df['codigo de almacen'] = final_df['codigo de almacen'].fillna('').astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
         
-        # Conversión de fechas segura
         final_df['fecha de vencimiento'] = pd.to_datetime(final_df['fecha de vencimiento'], errors='coerce').dt.date
         
         return final_df, original_cols
@@ -99,7 +95,6 @@ if gsheet_url:
     if df_raw is not None and not df_raw.empty:
         st.sidebar.header("🔍 Filtros de Búsqueda")
         
-        # Filtro de fecha apagado por defecto para que veas todo al iniciar
         usar_filtro_fecha = st.sidebar.checkbox("Filtrar por Rango de Fechas", value=False)
         dates_valid = df_raw['fecha de vencimiento'].dropna()
         min_date = dates_valid.min() if not dates_valid.empty else datetime.today().date()
@@ -116,7 +111,6 @@ if gsheet_url:
         
         search_query = st.sidebar.text_input("Buscar por Artículo o Descripción:").strip().lower()
         
-        # --- Filtrado ---
         df_filtered = df_raw.copy()
         
         if usar_filtro_fecha and len(date_range) == 2:
@@ -144,7 +138,6 @@ if gsheet_url:
         
         df_display = df_filtered[list(target_columns.keys())].rename(columns=target_columns)
         
-        # KPIs con formato numérico correcto
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         with kpi1:
             st.metric("Total Documentos", f"{df_filtered['numero de documento'].nunique()} uds")
