@@ -43,16 +43,7 @@ st.markdown("""
         align-items: center;
         gap: 18px;
     }
-    .ma-header-logo {
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background: #FFFFFF;
-        padding: 4px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-        object-fit: contain;
-        flex-shrink: 0;
-    }
+
     .ma-header-text h1 {
         color: #FFFFFF !important;
         font-size: 30px;
@@ -340,9 +331,6 @@ if "filtros_aplicados" not in st.session_state:
 # ─────────────────────────────────────────────
 # HEADER
 # ─────────────────────────────────────────────
-# ─────────────────────────────────────────────
-# HEADER
-# ─────────────────────────────────────────────
 col_titulo, col_boton = st.columns([5, 1.2])
 with col_titulo:
     st.markdown(
@@ -362,17 +350,7 @@ with col_boton:
     if st.button("🔄 Recargar datos", type="primary", key="btn_recargar"):
         st.session_state.cache_key += 1
         cargar_datos.clear()
-st.markdown(
-    """
-    <div class="ma-header">
-        <div class="ma-header-text">
-            <h1>🍰 Control de Entrega de Productos Terminados</h1>
-            <p>MARÍA ALMENARA · GESTIÓN DE TRANSFERENCIAS ENTRE ALMACENES</p>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+
 
 
 # ─────────────────────────────────────────────
@@ -396,7 +374,7 @@ with col_ts:
         ts = st.session_state.ultima_actualizacion.strftime("%d/%m/%Y %H:%M:%S")
         st.caption(f"🕒 Última actualización: **{ts}** (hora Lima)")
 with col_boton:
-    if st.button("🔄 Recargar datos", width="stretch", type="primary"):
+    if st.button("🔄 Recargar datos", use_container_width=True, type="primary"):
         st.session_state.cache_key += 1
         cargar_datos.clear()
 
@@ -513,7 +491,7 @@ if filtros["busqueda_texto"].strip():
 
 if filtros["rango_fechas"] and len(filtros["rango_fechas"]) == 2:
     f_ini = pd.Timestamp(filtros["rango_fechas"][0])
-    f_fin = pd.Timestamp(filtros["rango_fechas"][1]) + pd.Timedelta(seconds=86399)
+    f_fin = pd.Timestamp(filtros["rango_fechas"][1]) + pd.Timedelta("86399s")
     mask &= (df["Fecha de vencimiento"] >= f_ini) & (df["Fecha de vencimiento"] <= f_fin)
 
 if filtros["grupo_sel"] != "Todos" and "Linea de Producción" in df.columns:
@@ -547,7 +525,7 @@ if df_tabla.empty:
 else:
     st.dataframe(
         df_tabla,
-        width="stretch",
+        use_container_width=True,
         hide_index=True,
         height=520,
         column_config={
@@ -586,7 +564,7 @@ with st.expander("📊 Resumen agrupado por artículo"):
             grp[c] = grp[c].round(3)
         st.dataframe(
             grp,
-            width="stretch",
+            use_container_width=True,
             hide_index=True,
             column_config={
                 "Cantidad":  st.column_config.NumberColumn(format="%.3f"),
@@ -619,7 +597,7 @@ with st.expander("⚠️ ST posiblemente duplicadas o ya cubiertas"):
         st.warning(f"Se encontraron {len(alertas_df)} posible(s) caso(s).")
         st.dataframe(
             alertas_df,
-            width="stretch",
+            use_container_width=True,
             hide_index=True,
             column_config={
                 "Cant. pendiente (ST sin atender)": st.column_config.NumberColumn(format="%.3f"),
