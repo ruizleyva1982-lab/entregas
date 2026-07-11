@@ -23,7 +23,7 @@ st.markdown('<div class="main-title">📦 Dashboard de Solicitudes de Traslado (
 st.sidebar.header("🔗 Configuración de Datos")
 gsheet_url = st.sidebar.text_input(
     "Enlace de Google Sheets (CSV publicado):",
-    placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
+    value="https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotfV/pub?gid=420751890&single=true&output=csv"
 )
 
 # Función para limpiar texto y evitar problemas de acentos/espacios
