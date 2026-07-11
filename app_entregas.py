@@ -374,7 +374,7 @@ with col_ts:
         ts = st.session_state.ultima_actualizacion.strftime("%d/%m/%Y %H:%M:%S")
         st.caption(f"🕒 Última actualización: **{ts}** (hora Lima)")
 with col_boton:
-    if st.button("🔄 Recargar datos", width="stretch", type="primary"):
+    if st.button("🔄 Recargar datos", use_container_width=True, type="primary"):
         st.session_state.cache_key += 1
         cargar_datos.clear()
 
@@ -525,7 +525,7 @@ if df_tabla.empty:
 else:
     st.dataframe(
         df_tabla,
-        width="stretch",
+        use_container_width=True,
         hide_index=True,
         height=520,
         column_config={
@@ -564,7 +564,7 @@ with st.expander("📊 Resumen agrupado por artículo"):
             grp[c] = grp[c].round(3)
         st.dataframe(
             grp,
-            width="stretch",
+            use_container_width=True,
             hide_index=True,
             column_config={
                 "Cantidad":  st.column_config.NumberColumn(format="%.3f"),
@@ -597,7 +597,7 @@ with st.expander("⚠️ ST posiblemente duplicadas o ya cubiertas"):
         st.warning(f"Se encontraron {len(alertas_df)} posible(s) caso(s).")
         st.dataframe(
             alertas_df,
-            width="stretch",
+            use_container_width=True,
             hide_index=True,
             column_config={
                 "Cant. pendiente (ST sin atender)": st.column_config.NumberColumn(format="%.3f"),
