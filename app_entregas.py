@@ -450,14 +450,26 @@ with st.form("filtros_form"):
         if not fechas_validas.empty:
             fecha_min = fechas_validas.min().date()
             fecha_max = fechas_validas.max().date()
-            valor_default = st.session_state.filtros_aplicados["rango_fechas"] or (fecha_min, fecha_max)
-            rango_fechas_input = st.date_input(
-                "📅 Rango de fechas (Vencimiento)",
-                value=valor_default,
-                min_value=fecha_min,
-                max_value=fecha_max,
-                format="DD/MM/YYYY",
-            )
+            prev = st.session_state.filtros_aplicados.get("rango_fechas")
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                f_desde = st.text_input(
+                    "📅 Desde (DD/MM/YYYY)",
+                    value=prev[0].strftime("%d/%m/%Y") if prev else fecha_min.strftime("%d/%m/%Y"),
+                )
+            with col_f2:
+                f_hasta = st.text_input(
+                    "Hasta (DD/MM/YYYY)",
+                    value=prev[1].strftime("%d/%m/%Y") if prev else fecha_max.strftime("%d/%m/%Y"),
+                )
+            try:
+                from datetime import datetime
+                rango_fechas_input = (
+                    datetime.strptime(f_desde, "%d/%m/%Y").date(),
+                    datetime.strptime(f_hasta, "%d/%m/%Y").date(),
+                )
+            except ValueError:
+                rango_fechas_input = (fecha_min, fecha_max)
         else:
             rango_fechas_input = None
 
