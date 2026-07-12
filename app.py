@@ -39,15 +39,19 @@ if df is not None and not df.empty:
     
     # Mapeo de nombres reales (tal como aparecen en el archivo) a nombres deseados
     # Los nombres reales los tomamos de la lista que apareció en el error
+
+
     column_mapping = {
-        "NÃºmero de documento": "Número de documento",
-        "Fecha de vencimiento": "Fecha de vencimiento",
-        "NÃºmero de artÃ­culo": "Número de artículo",
-        "DescripciÃ³n del artÃ­culo": "Descripción del artículo",
-        "Cantidad": "Cantidad",
-        "CantidadAtendida": "CantidadAtendida",
-        "CantidadPendiente": "CantidadPendiente"
-    }
+    "NÃºmero de documento": "Número de documento",
+    "Fecha de vencimiento": "Fecha de vencimiento",
+    "NÃºmero de artÃ­culo": "Número de artículo",
+    "DescripciÃ³n del artÃ­culo": "Descripción del artículo",
+    "Cantidad": "Cantidad",
+    "CantidadAtendida": "CantidadAtendida",
+    "CantidadPendiente": "CantidadPendiente",
+    "De cÃ³digo de almacÃ©n": "De código de almacén",  # <-- AÑADIR
+    "CÃ³digo de almacÃ©n": "Código de almacén"        # <-- AÑADIR
+}
     
     # Verificar qué columnas del mapeo existen realmente
     existing_mapping = {}
