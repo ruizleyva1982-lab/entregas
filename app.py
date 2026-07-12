@@ -9,21 +9,18 @@ st.set_page_config(page_title="Solicitudes de Traslado SAP BO", layout="wide")
 st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
-# ⚠️ REEMPLAZA ESTA URL CON LA QUE OBTENGAS AL PUBLICAR TU HOJA EN GOOGLE SHEETS
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgaww6Cc4dc_rWY-BpleKO79_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
+# URL CORRECTA (copia exactamente la que aparece en la ventana de publicación)
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 
 def normalize_column(name):
     """Normaliza un nombre de columna: quita acentos, convierte a minúsculas, elimina espacios."""
     name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('utf-8')
-    name = re.sub(r'[^a-zA-Z0-9]', ' ', name)  # reemplaza caracteres no alfanuméricos por espacio
-    name = ' '.join(name.split())  # elimina espacios múltiples
+    name = re.sub(r'[^a-zA-Z0-9]', ' ', name)
+    name = ' '.join(name.split())
     return name.strip().lower()
 
 def find_column(df, search_names):
-    """
-    Busca una columna en el DataFrame que coincida (normalizada) con alguno de los nombres de búsqueda.
-    Devuelve el nombre real de la columna o None.
-    """
+    """Busca una columna en el DataFrame que coincida (normalizada) con alguno de los nombres de búsqueda."""
     df_norm = {normalize_column(col): col for col in df.columns}
     for search in search_names:
         norm_search = normalize_column(search)
@@ -36,7 +33,6 @@ def load_data(url):
     try:
         response = requests.get(url)
         response.raise_for_status()
-        # Intentar con diferentes encodings
         try:
             df = pd.read_csv(StringIO(response.text), encoding='utf-8')
         except UnicodeDecodeError:
@@ -67,35 +63,27 @@ if df is not None and not df.empty:
         "CantidadPendiente": ["pendiente", "cant pendiente"]
     }
     
-    # Obtener nombres reales
     real_columns = {}
     for desired, search_terms in columnas_deseadas.items():
-        col = find_column(df, search_terms + [desired])  # también buscar el nombre exacto
+        col = find_column(df, search_terms + [desired])
         if col:
             real_columns[desired] = col
         else:
             st.warning(f"No se encontró la columna: {desired}")
     
-    # Verificar que tengamos todas
     if len(real_columns) < 7:
         st.error("❌ Faltan columnas necesarias. Revisa los nombres en tu archivo.")
         st.write("Columnas disponibles en el archivo:", df.columns.tolist())
         st.stop()
     
-    # Renombrar para tener nombres limpios
     df_clean = df.rename(columns={real_columns[key]: key for key in real_columns})
     
-    # Convertir fechas
     df_clean["Fecha de vencimiento"] = pd.to_datetime(df_clean["Fecha de vencimiento"], errors='coerce')
-    
-    # Convertir cantidades a numérico
     for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
         df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
     
-    # Filtros en barra lateral
     st.sidebar.header("🔎 Filtros")
     
-    # Para los filtros, también necesitamos los nombres reales de las columnas de almacén
     col_de_almacen = find_column(df, ["de código de almacén", "de almacén", "almacen origen"])
     col_almacen = find_column(df, ["código de almacén", "almacén", "almacen destino"])
     
@@ -112,7 +100,6 @@ if df is not None and not df.empty:
         st.cache_data.clear()
         st.rerun()
     
-    # Aplicar filtros
     df_filtrado = df_clean.copy()
     
     if filtro_de_almacen and col_de_almacen:
@@ -130,18 +117,15 @@ if df is not None and not df.empty:
     
     st.markdown(f"**Total de registros:** {len(df_filtrado)}")
     
-    # Mostrar SOLO las 7 columnas deseadas
     columnas_mostrar = ["Número de documento", "Fecha de vencimiento", "Número de artículo", 
                         "Descripción del artículo", "Cantidad", "CantidadAtendida", "CantidadPendiente"]
     
-    # Verificar que existan (ya deberían)
     existentes = [col for col in columnas_mostrar if col in df_filtrado.columns]
     if existentes:
         st.dataframe(df_filtrado[existentes], use_container_width=True)
     else:
         st.error("No se encontraron las columnas para mostrar.")
     
-    # Botón de descarga
     if existentes:
         csv = df_filtrado[existentes].to_csv(index=False)
         st.download_button("📥 Descargar datos filtrados (CSV)", data=csv, file_name="solicitudes_filtrado.csv", mime="text/csv")
@@ -150,7 +134,3 @@ elif df is not None and df.empty:
     st.warning("El archivo está vacío. Verifica que tenga datos.")
 else:
     st.error("No se pudo cargar el archivo. Verifica la URL.")
-
-# Mostrar los nombres reales de las columnas (para depuración, comenta después)
-with st.expander("🔍 Ver nombres reales de columnas (solo para depuración)"):
-    st.write(df.columns.tolist() if df is not None else "No hay datos")
