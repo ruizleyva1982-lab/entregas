@@ -25,6 +25,18 @@ def load_data(url):
 df = load_data(CSV_URL)
 
 if df is not None:
+    # 👇 AÑADE ESTAS LÍNEAS PARA DEPURAR (puedes borrarlas después)
+    st.write("🔍 **Primeras 5 filas del archivo:**")
+    st.dataframe(df.head())
+    st.write("📋 **Columnas disponibles:**", df.columns.tolist())
+    st.write("🏷️ **Valores únicos en 'De código de almacén':**", df["De código de almacén"].unique()[:10])
+    st.write("🏷️ **Valores únicos en 'Código de almacén':**", df["Código de almacén"].unique()[:10])
+    st.write("📅 **Rango de fechas:**", df["Fecha de vencimiento"].min(), "a", df["Fecha de vencimiento"].max())
+    # ------------------------------------------------
+
+
+
+if df is not None:
     # Columnas que quieres mostrar
     columnas = [
         "Número de documento",
