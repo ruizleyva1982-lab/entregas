@@ -9,7 +9,7 @@ st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
 # ⚠️ REEMPLAZA ESTA URL CON LA QUE OBTENGAS AL PUBLICAR TU HOJA EN GOOGLE SHEETS
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 
 @st.cache_data(ttl=600)
 def load_data(url):
