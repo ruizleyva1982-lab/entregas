@@ -9,8 +9,9 @@ st.set_page_config(page_title="Solicitudes de Traslado SAP BO", layout="wide")
 st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
-# ⚠️ USA LA URL QUE APARECE EN LA VENTANA DE PUBLICACIÓN (CON ...BpleKO79...)
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pubhtml"
+# ⚠️ REEMPLAZA ESTA URL CON LA QUE OBTENGAS AL PUBLICAR EN FORMATO CSV
+# La URL debe terminar en: ?output=csv (o &output=csv)
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?output=csv"
 
 def normalize_column(name):
     """Normaliza un nombre de columna: quita acentos, convierte a minúsculas, elimina espacios."""
@@ -42,7 +43,7 @@ def load_data(url):
                     StringIO(content),
                     sep=sep,
                     encoding='utf-8',
-                    on_bad_lines='skip',  # <-- Salta líneas con número incorrecto de campos
+                    on_bad_lines='skip',
                     engine='python'
                 )
                 if not df.empty:
@@ -70,7 +71,7 @@ def load_data(url):
         
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
-            st.error("❌ El enlace del archivo no es válido o no está publicado correctamente. Ve a Google Sheets → Archivo → Compartir → Publicar en la web, y copia el enlace de nuevo.")
+            st.error("❌ El enlace del archivo no es válido o no está publicado correctamente. Ve a Google Sheets → Archivo → Compartir → Publicar en la web, y copia el enlace de nuevo (formato CSV).")
         else:
             st.error(f"Error al cargar los datos: {e}")
         return None
@@ -108,10 +109,10 @@ if df is not None and not df.empty:
     
     df_clean = df.rename(columns={real_columns[key]: key for key in real_columns})
     
-    # 🔧 Convertir fechas con formato DD/MM/YYYY
+    # Convertir fechas con formato DD/MM/YYYY
     df_clean["Fecha de vencimiento"] = pd.to_datetime(
         df_clean["Fecha de vencimiento"], 
-        format='%d/%m/%Y',  # <-- Día/Mes/Año
+        format='%d/%m/%Y',
         errors='coerce'
     )
     
