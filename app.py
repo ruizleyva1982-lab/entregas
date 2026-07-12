@@ -12,7 +12,7 @@ st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
 # URL pública del CSV en Google Sheets (actualizada con la del documento)
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-Bplek0V9_6_7bhDcK_PxfotVf/pub?output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?output=csv"
 
 @st.cache_data(ttl=600)  # cache por 10 minutos
 def load_data(url):
