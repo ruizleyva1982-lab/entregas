@@ -8,7 +8,7 @@ st.set_page_config(page_title="Solicitudes de Traslado SAP BO", layout="wide")
 st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgaww6Cc4dc_rWY-BpleKO79_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 
 # Función para normalizar texto (quitar acentos y convertir a minúsculas)
 def normalize_text(text):
