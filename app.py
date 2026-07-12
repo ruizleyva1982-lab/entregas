@@ -10,10 +10,15 @@ st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
 # URL CORRECTA (copia exactamente la que aparece en la ventana de publicación)
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 
 def normalize_column(name):
     """Normaliza un nombre de columna: quita acentos, convierte a minúsculas, elimina espacios."""
+    # Primero decodificar caracteres Unicode mal formados
+    try:
+        name = name.encode('latin-1').decode('utf-8')
+    except:
+        pass
     name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('utf-8')
     name = re.sub(r'[^a-zA-Z0-9]', ' ', name)
     name = ' '.join(name.split())
@@ -21,7 +26,6 @@ def normalize_column(name):
 
 def find_column(df, search_names):
     """Busca una columna en el DataFrame que coincida (normalizada) con alguno de los nombres de búsqueda."""
-    # Primero intentar con normalización
     df_norm = {normalize_column(col): col for col in df.columns}
     for search in search_names:
         norm_search = normalize_column(search)
@@ -34,25 +38,15 @@ def load_data(url):
     try:
         response = requests.get(url)
         response.raise_for_status()
-        
-        # Intentar con diferentes codificaciones
-        encodings = ['utf-8-sig', 'utf-8', 'latin-1', 'cp1252']
-        for encoding in encodings:
-            try:
-                df = pd.read_csv(StringIO(response.text), encoding=encoding)
-                # Verificar que las columnas se vean bien
-                # Si hay muchos caracteres extraños, probar siguiente encoding
-                return df
-            except UnicodeDecodeError:
-                continue
-        
-        # Si ningún encoding funciona, intentar con pandas detectando automáticamente
-        df = pd.read_csv(StringIO(response.text), encoding=None)
+        # Intentar con diferentes encodings
+        try:
+            df = pd.read_csv(StringIO(response.text), encoding='utf-8')
+        except UnicodeDecodeError:
+            df = pd.read_csv(StringIO(response.text), encoding='latin-1')
         return df
-        
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
-            st.error("❌ El enlace del archivo no es válido o no está publicado correctamente.")
+            st.error("❌ El enlace del archivo no es válido o no está publicado correctamente. Ve a Google Sheets → Archivo → Compartir → Publicar en la web, y copia el enlace de nuevo.")
         else:
             st.error(f"Error al cargar los datos: {e}")
         return None
@@ -64,19 +58,20 @@ def load_data(url):
 df = load_data(CSV_URL)
 
 if df is not None and not df.empty:
-    # Mostrar nombres reales para depuración
-    with st.expander("🔍 Ver nombres reales de columnas"):
-        st.write("Columnas en el archivo:", df.columns.tolist())
+    # Mostrar nombres reales para depuración (comentar después)
+    with st.expander("🔍 Columnas disponibles (para depuración)"):
+        st.write(df.columns.tolist())
     
-    # Mapear nombres de columnas reales a las que necesitamos
+    # Buscar columnas de forma más específica
+    # Lista de posibles nombres para cada columna (incluyendo versiones con caracteres mal codificados)
     columnas_deseadas = {
-        "Número de documento": ["documento", "num doc", "número doc", "NÃºmero de documento"],
-        "Fecha de vencimiento": ["vencimiento", "fecha venc", "fechavenc", "Fecha de vencimiento"],
-        "Número de artículo": ["artículo", "num art", "número art", "NÃºmero de artÃ­culo"],
-        "Descripción del artículo": ["descripción", "descrip", "desc art", "DescripciÃ³n del artÃ­culo"],
-        "Cantidad": ["cantidad", "cant", "Cantidad"],
-        "CantidadAtendida": ["atendida", "cant atendida", "CantidadAtendida"],
-        "CantidadPendiente": ["pendiente", "cant pendiente", "CantidadPendiente"]
+        "Número de documento": ["Número de documento", "Numero de documento", "documento", "doc"],
+        "Fecha de vencimiento": ["Fecha de vencimiento", "vencimiento", "fecha venc"],
+        "Número de artículo": ["Número de artículo", "Numero de articulo", "artículo", "articulo"],
+        "Descripción del artículo": ["Descripción del artículo", "Descripcion del articulo", "descripcion"],
+        "Cantidad": ["Cantidad", "cant"],
+        "CantidadAtendida": ["CantidadAtendida", "cantidad atendida"],
+        "CantidadPendiente": ["CantidadPendiente", "cantidad pendiente"]
     }
     
     real_columns = {}
@@ -87,23 +82,29 @@ if df is not None and not df.empty:
         else:
             st.warning(f"No se encontró la columna: {desired}")
     
+    # Verificar que tengamos todas
     if len(real_columns) < 7:
         st.error("❌ Faltan columnas necesarias. Revisa los nombres en tu archivo.")
-        st.write("Buscando estas columnas:", list(columnas_deseadas.keys()))
-        st.write("Columnas reales disponibles:", df.columns.tolist())
+        st.write("Columnas disponibles en el archivo:", df.columns.tolist())
         st.stop()
     
     # Renombrar para tener nombres limpios
     df_clean = df.rename(columns={real_columns[key]: key for key in real_columns})
     
+    # Convertir fechas y formatear sin hora
     df_clean["Fecha de vencimiento"] = pd.to_datetime(df_clean["Fecha de vencimiento"], errors='coerce')
+    df_clean["Fecha de vencimiento"] = df_clean["Fecha de vencimiento"].dt.date  # 👈 Quita la hora
+    
+    # Convertir cantidades a numérico
     for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
         df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
     
+    # Filtros en barra lateral
     st.sidebar.header("🔎 Filtros")
     
-    col_de_almacen = find_column(df, ["de código de almacén", "de almacén", "almacen origen", "De cÃ³digo de almacÃ©n"])
-    col_almacen = find_column(df, ["código de almacén", "almacén", "almacen destino", "CÃ³digo de almacÃ©n"])
+    # Buscar columnas de almacén
+    col_de_almacen = find_column(df, ["De código de almacén", "De codigo de almacen", "almacen origen"])
+    col_almacen = find_column(df, ["Código de almacén", "Codigo de almacen", "almacen destino"])
     
     filtro_de_almacen = st.sidebar.text_input("De código de almacén", "")
     filtro_almacen = st.sidebar.text_input("Código de almacén", "")
@@ -118,6 +119,7 @@ if df is not None and not df.empty:
         st.cache_data.clear()
         st.rerun()
     
+    # Aplicar filtros
     df_filtrado = df_clean.copy()
     
     if filtro_de_almacen and col_de_almacen:
@@ -129,12 +131,13 @@ if df is not None and not df.empty:
     if filtro_descripcion:
         df_filtrado = df_filtrado[df_filtrado["Descripción del artículo"].astype(str).str.contains(filtro_descripcion, case=False, na=False)]
     if fecha_min:
-        df_filtrado = df_filtrado[df_filtrado["Fecha de vencimiento"] >= pd.Timestamp(fecha_min)]
+        df_filtrado = df_filtrado[df_filtrado["Fecha de vencimiento"] >= fecha_min]
     if fecha_max:
-        df_filtrado = df_filtrado[df_filtrado["Fecha de vencimiento"] <= pd.Timestamp(fecha_max)]
+        df_filtrado = df_filtrado[df_filtrado["Fecha de vencimiento"] <= fecha_max]
     
     st.markdown(f"**Total de registros:** {len(df_filtrado)}")
     
+    # Mostrar SOLO las 7 columnas deseadas
     columnas_mostrar = ["Número de documento", "Fecha de vencimiento", "Número de artículo", 
                         "Descripción del artículo", "Cantidad", "CantidadAtendida", "CantidadPendiente"]
     
@@ -144,6 +147,7 @@ if df is not None and not df.empty:
     else:
         st.error("No se encontraron las columnas para mostrar.")
     
+    # Botón de descarga
     if existentes:
         csv = df_filtrado[existentes].to_csv(index=False)
         st.download_button("📥 Descargar datos filtrados (CSV)", data=csv, file_name="solicitudes_filtrado.csv", mime="text/csv")
