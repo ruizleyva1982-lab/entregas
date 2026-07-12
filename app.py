@@ -10,7 +10,7 @@ st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
 # ⚠️ REEMPLAZA ESTA URL CON LA QUE OBTENGAS AL PUBLICAR TU HOJA EN GOOGLE SHEETS
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OC0RyKxWx11WAC1XHYSJH74oCgaww6Cc4dc_rWY-BpleKO79_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 
 def normalize_column(name):
     """Normaliza un nombre de columna: quita acentos, convierte a minúsculas, elimina espacios."""
