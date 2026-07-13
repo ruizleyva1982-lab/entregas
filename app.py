@@ -2,30 +2,13 @@ import streamlit as st
 import pandas as pd
 import requests
 from io import StringIO
-import unicodedata
-import re
 
 st.set_page_config(page_title="Solicitudes de Traslado SAP BO", layout="wide")
 st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
 # ⚠️ URL CORRECTA (copia la que aparece en la ventana de publicación)
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
-
-def normalize(name):
-    """Normaliza un nombre: convierte a minúsculas, quita acentos y caracteres no alfanuméricos."""
-    name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('utf-8')
-    name = re.sub(r'[^a-zA-Z0-9]', ' ', name)
-    return ' '.join(name.split()).lower()
-
-def find_column(df, search_terms):
-    """Busca una columna cuyo nombre normalizado coincida con alguno de los términos de búsqueda."""
-    norm_cols = {normalize(col): col for col in df.columns}
-    for term in search_terms:
-        norm_term = normalize(term)
-        if norm_term in norm_cols:
-            return norm_cols[norm_term]
-    return None
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgaww6Cc4dc_rWY-BpleKO79_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 
 @st.cache_data(ttl=600)
 def load_data(url):
@@ -77,9 +60,7 @@ if df is not None and not df.empty:
     # 3. Limpiar y convertir cantidades (eliminar comas, espacios, etc.)
     def clean_number(val):
         if isinstance(val, str):
-            # Eliminar comas (separador de miles), espacios, y caracteres no numéricos excepto punto
             val = val.replace(',', '').replace(' ', '').strip()
-            # Si queda vacío, devolver NaN
             if val == '':
                 return None
         return val
@@ -89,23 +70,42 @@ if df is not None and not df.empty:
             df[col] = df[col].apply(clean_number)
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # 4. Encontrar las columnas de almacén (usando búsqueda flexible)
-    col_de_almacen = find_column(df, ["De código de almacén", "de almacén", "almacen origen"])
-    col_almacen = find_column(df, ["Código de almacén", "almacén", "almacen destino"])
-
-    # Si no se encontraron, mostrar advertencia pero permitir continuar
-    if col_de_almacen is None:
-        st.warning("⚠️ No se encontró la columna 'De código de almacén'. Los filtros correspondientes no funcionarán.")
-    if col_almacen is None:
-        st.warning("⚠️ No se encontró la columna 'Código de almacén'. Los filtros correspondientes no funcionarán.")
-
-    # ========= FILTROS (Barra lateral) =========
-    st.sidebar.header("🔎 Filtros")
+    # 4. Encontrar las columnas de almacén (usando los nombres exactos con caracteres extraños)
+    #    Estos son los nombres que aparecen en la lista de columnas del DataFrame original
+    col_de_almacen = None
+    col_almacen = None
     
-    # Mostrar qué columnas se están usando (para depuración)
+    # Buscar exactamente los nombres con caracteres extraños
+    for col in df.columns:
+        if col == "De cÃ³digo de almacÃ©n":
+            col_de_almacen = col
+        elif col == "CÃ³digo de almacÃ©n":
+            col_almacen = col
+    
+    # Si no se encontraron, buscar por coincidencia parcial (más flexible)
+    if col_de_almacen is None:
+        for col in df.columns:
+            if "almacén" in col.lower() and "de" in col.lower():
+                col_de_almacen = col
+                break
+    if col_almacen is None:
+        for col in df.columns:
+            if "almacén" in col.lower() and "código" in col.lower():
+                col_almacen = col
+                break
+
+    # Mostrar en la barra lateral qué columnas se están usando
+    st.sidebar.header("🔎 Filtros")
     st.sidebar.write(f"📌 Columna 'De código': **{col_de_almacen or 'No encontrada'}**")
     st.sidebar.write(f"📌 Columna 'Código': **{col_almacen or 'No encontrada'}**")
 
+    # Advertencia si no se encontraron
+    if col_de_almacen is None:
+        st.sidebar.warning("⚠️ No se encontró la columna 'De código de almacén'. El filtro no funcionará.")
+    if col_almacen is None:
+        st.sidebar.warning("⚠️ No se encontró la columna 'Código de almacén'. El filtro no funcionará.")
+
+    # ========= FILTROS =========
     filtro_de_almacen = st.sidebar.text_input("De código de almacén", "")
     filtro_almacen = st.sidebar.text_input("Código de almacén", "")
     filtro_articulo = st.sidebar.text_input("Número de artículo", "")
