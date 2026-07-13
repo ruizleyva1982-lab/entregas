@@ -2,13 +2,30 @@ import streamlit as st
 import pandas as pd
 import requests
 from io import StringIO
+import unicodedata
+import re
 
 st.set_page_config(page_title="Solicitudes de Traslado SAP BO", layout="wide")
 st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
-# ⚠️ URL CORRECTA (la que aparece en la ventana de publicación)
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
+# ⚠️ URL CORRECTA (copia la que aparece en la ventana de publicación)
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgaww6Cc4dc_rWY-BpleKO79_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
+
+def normalize(name):
+    """Normaliza un nombre: convierte a minúsculas, quita acentos y caracteres no alfanuméricos."""
+    name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('utf-8')
+    name = re.sub(r'[^a-zA-Z0-9]', ' ', name)
+    return ' '.join(name.split()).lower()
+
+def find_column(df, search_terms):
+    """Busca una columna cuyo nombre normalizado coincida con alguno de los términos de búsqueda."""
+    norm_cols = {normalize(col): col for col in df.columns}
+    for term in search_terms:
+        norm_term = normalize(term)
+        if norm_term in norm_cols:
+            return norm_cols[norm_term]
+    return None
 
 @st.cache_data(ttl=600)
 def load_data(url):
@@ -19,7 +36,6 @@ def load_data(url):
         if content.strip().startswith('<!DOCTYPE'):
             st.error("❌ La URL devuelve HTML, no CSV. Publica el archivo como CSV en Google Sheets.")
             return None
-        # Leer CSV, saltando líneas con problemas
         df = pd.read_csv(StringIO(content), encoding='utf-8', on_bad_lines='skip', engine='python')
         return df
     except Exception as e:
@@ -29,10 +45,12 @@ def load_data(url):
 df = load_data(CSV_URL)
 
 if df is not None and not df.empty:
+    # Mostrar columnas para depuración (opcional)
     with st.expander("🔍 Columnas disponibles en el archivo (solo depuración)"):
         st.write(df.columns.tolist())
 
-    # Mapeo directo de nombres reales a nombres deseados
+    # 1. Renombrar las 7 columnas de interés a nombres limpios
+    #    Mapeo de nombres reales (con caracteres extraños) a nombres deseados
     column_mapping = {
         "NÃºmero de documento": "Número de documento",
         "Fecha de vencimiento": "Fecha de vencimiento",
@@ -43,66 +61,50 @@ if df is not None and not df.empty:
         "CantidadPendiente": "CantidadPendiente"
     }
     
-    existing_mapping = {}
-    for real_name, desired_name in column_mapping.items():
-        if real_name in df.columns:
-            existing_mapping[real_name] = desired_name
-        else:
-            st.warning(f"La columna real '{real_name}' no se encontró. Verifica.")
+    # Aplicar renombrado solo a las columnas que existen
+    for old, new in column_mapping.items():
+        if old in df.columns:
+            df.rename(columns={old: new}, inplace=True)
 
-    if not existing_mapping:
-        st.error("❌ No se encontraron columnas esperadas.")
-        st.stop()
+    # 2. Convertir fechas (formato DD/MM/YYYY)
+    if "Fecha de vencimiento" in df.columns:
+        df["Fecha de vencimiento"] = pd.to_datetime(
+            df["Fecha de vencimiento"],
+            format='%d/%m/%Y',
+            errors='coerce'
+        )
 
-    df_clean = df.rename(columns=existing_mapping)
-
-    # Convertir fechas (formato DD/MM/YYYY)
-    if "Fecha de vencimiento" in df_clean.columns:
-        df_clean["Fecha de vencimiento"] = pd.to_datetime(df_clean["Fecha de vencimiento"], format='%d/%m/%Y', errors='coerce')
-
-    # Limpiar y convertir cantidades (eliminar comas y espacios)
+    # 3. Limpiar y convertir cantidades (eliminar comas, espacios, etc.)
     def clean_number(val):
         if isinstance(val, str):
-            # Eliminar comas de separación de miles y espacios
+            # Eliminar comas (separador de miles), espacios, y caracteres no numéricos excepto punto
             val = val.replace(',', '').replace(' ', '').strip()
+            # Si queda vacío, devolver NaN
+            if val == '':
+                return None
         return val
 
     for col in ["Cantidad", "CantidadAtendida", "CantidadPendiente"]:
-        if col in df_clean.columns:
-            df_clean[col] = df_clean[col].apply(clean_number)
-            df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
+        if col in df.columns:
+            df[col] = df[col].apply(clean_number)
+            df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # ========= FILTROS =========
-    st.sidebar.header("🔎 Filtros")
+    # 4. Encontrar las columnas de almacén (usando búsqueda flexible)
+    col_de_almacen = find_column(df, ["De código de almacén", "de almacén", "almacen origen"])
+    col_almacen = find_column(df, ["Código de almacén", "almacén", "almacen destino"])
 
-    # Buscar columnas de almacén usando los nombres reales (con caracteres extraños)
-    col_de_almacen = None
-    col_almacen = None
-    
-    # Buscar específicamente en las columnas reales (no renombradas) usando nombres con caracteres extraños
-    for col in df.columns:
-        if "De cÃ³digo de almacÃ©n" == col:
-            col_de_almacen = col
-        elif "CÃ³digo de almacÃ©n" == col:
-            col_almacen = col
-    
-    # Si no se encontraron, intentar búsqueda por coincidencia parcial (en minúsculas sin acentos)
+    # Si no se encontraron, mostrar advertencia pero permitir continuar
     if col_de_almacen is None:
-        for col in df.columns:
-            col_lower = col.lower()
-            if "de" in col_lower and "almacén" in col_lower:
-                col_de_almacen = col
-                break
+        st.warning("⚠️ No se encontró la columna 'De código de almacén'. Los filtros correspondientes no funcionarán.")
     if col_almacen is None:
-        for col in df.columns:
-            col_lower = col.lower()
-            if "código" in col_lower and "almacén" in col_lower:
-                col_almacen = col
-                break
+        st.warning("⚠️ No se encontró la columna 'Código de almacén'. Los filtros correspondientes no funcionarán.")
 
-    # Mostrar en la interfaz qué columnas se están usando para filtrar (depuración)
-    st.sidebar.write(f"Columna 'De código': {col_de_almacen}")
-    st.sidebar.write(f"Columna 'Código': {col_almacen}")
+    # ========= FILTROS (Barra lateral) =========
+    st.sidebar.header("🔎 Filtros")
+    
+    # Mostrar qué columnas se están usando (para depuración)
+    st.sidebar.write(f"📌 Columna 'De código': **{col_de_almacen or 'No encontrada'}**")
+    st.sidebar.write(f"📌 Columna 'Código': **{col_almacen or 'No encontrada'}**")
 
     filtro_de_almacen = st.sidebar.text_input("De código de almacén", "")
     filtro_almacen = st.sidebar.text_input("Código de almacén", "")
@@ -117,34 +119,38 @@ if df is not None and not df.empty:
         st.cache_data.clear()
         st.rerun()
 
-    df_filtrado = df_clean.copy()
+    # ========= Aplicar filtros =========
+    df_filtrado = df.copy()
 
-    # Aplicar filtros usando las columnas de almacén reales
     if filtro_de_almacen and col_de_almacen:
-        # Usamos el nombre original de la columna (con caracteres extraños) pero el DataFrame ya tiene los nombres limpios,
-        # sin embargo, el filtro debe aplicarse sobre la columna que corresponde. Como renombramos, el nombre original no existe.
-        # Debemos usar la columna limpia correspondiente. Para ello, usamos el mapping inverse para saber cuál es su nombre limpio.
-        # Pero mejor: usamos la columna limpia que se creó al renombrar. Es decir, "De código de almacén" (limpio).
-        # Sin embargo, no la tenemos mapeada en el mapping principal porque no la necesitamos para mostrar.
-        # La forma más fácil: buscar la columna limpia que corresponde a la columna original.
-        # Vamos a crear un mapeo inverso de las columnas renombradas.
-        inverse_mapping = {v: k for k, v in existing_mapping.items()}
-        # Si col_de_almacen es el nombre original, obtener el nombre limpio (si existe en el mapping)
-        # Pero en existing_mapping solo tenemos las 7 columnas, no las de almacén. Así que no están mapeadas.
-        # Entonces, mejor: para filtrar, usamos el nombre original (que aún existe en df_filtrado porque solo renombramos algunas columnas).
-        # Pero df_filtrado es df_clean, que tiene solo las columnas renombradas, no conserva las originales.
-        # Solución: no renombrar todas las columnas, solo las necesarias para mostrar.
-        # Vamos a reestructurar: crear df_clean solo con las columnas que necesitamos, pero conservando las originales para los filtros.
-        # Para simplificar, haré una versión más directa: no renombraremos todo, solo crearemos nuevas columnas con los nombres deseados.
-        # Pero ya tenemos el código actual. Para no reescribir todo, vamos a modificar para que el filtro use la columna original.
-        # Dado que el usuario solo quiere filtrar por almacén, podemos hacer lo siguiente:
-        # Tomar la columna original de df (sin renombrar) y aplicarla al filtro.
-        pass
+        df_filtrado = df_filtrado[df_filtrado[col_de_almacen].astype(str).str.contains(filtro_de_almacen, case=False, na=False)]
+    if filtro_almacen and col_almacen:
+        df_filtrado = df_filtrado[df_filtrado[col_almacen].astype(str).str.contains(filtro_almacen, case=False, na=False)]
+    if filtro_articulo:
+        df_filtrado = df_filtrado[df_filtrado["Número de artículo"].astype(str).str.contains(filtro_articulo, case=False, na=False)]
+    if filtro_descripcion:
+        df_filtrado = df_filtrado[df_filtrado["Descripción del artículo"].astype(str).str.contains(filtro_descripcion, case=False, na=False)]
+    if fecha_min:
+        df_filtrado = df_filtrado[df_filtrado["Fecha de vencimiento"] >= pd.Timestamp(fecha_min)]
+    if fecha_max:
+        df_filtrado = df_filtrado[df_filtrado["Fecha de vencimiento"] <= pd.Timestamp(fecha_max)]
 
-    # Para no complicar, cambiaré la estrategia: no renombrar todo el df, solo extraer las columnas necesarias y mantener las originales para filtros.
-    # Como el usuario ya tiene datos, mejor haré un código nuevo más simple.
+    st.markdown(f"**Total de registros:** {len(df_filtrado)}")
 
-    st.warning("El código actual necesita reestructurarse para que los filtros funcionen. Por favor, usa la siguiente versión mejorada.")
+    # ========= Mostrar datos =========
+    columnas_mostrar = ["Número de documento", "Fecha de vencimiento", "Número de artículo", 
+                        "Descripción del artículo", "Cantidad", "CantidadAtendida", "CantidadPendiente"]
+    existentes = [col for col in columnas_mostrar if col in df_filtrado.columns]
+    
+    if existentes:
+        st.dataframe(df_filtrado[existentes], use_container_width=True)
+    else:
+        st.error("No se encontraron las columnas para mostrar.")
+    
+    # Botón de descarga
+    if existentes:
+        csv = df_filtrado[existentes].to_csv(index=False)
+        st.download_button("📥 Descargar datos filtrados (CSV)", data=csv, file_name="solicitudes_filtrado.csv", mime="text/csv")
 
 else:
-    st.error("No se pudieron cargar los datos.")
+    st.error("No se pudieron cargar los datos. Verifica la URL y la publicación.")
