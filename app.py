@@ -8,7 +8,7 @@ st.title("📦 Solicitudes de Traslado SAP BO")
 st.markdown("---")
 
 # ⚠️ URL CORRECTA (copia la que aparece en la ventana de publicación)
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4CeIsd5d-OCORyKxWx11WAC1XHYSJH74oCgauw6Cc4dc_rWY-BpleK079_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSWnV4Celsd5d-OCORyKxWx11WAC1XHYSJH74oCgaww6Cc4dc_rWY-BpleKO79_6_7bhDcK_PxfotVF/pub?gid=420751890&single=true&output=csv"
 
 @st.cache_data(ttl=600)
 def load_data(url):
@@ -33,7 +33,6 @@ if df is not None and not df.empty:
         st.write(df.columns.tolist())
 
     # 1. Renombrar las 7 columnas de interés a nombres limpios
-    #    Mapeo de nombres reales (con caracteres extraños) a nombres deseados
     column_mapping = {
         "NÃºmero de documento": "Número de documento",
         "Fecha de vencimiento": "Fecha de vencimiento",
@@ -44,7 +43,6 @@ if df is not None and not df.empty:
         "CantidadPendiente": "CantidadPendiente"
     }
     
-    # Aplicar renombrado solo a las columnas que existen
     for old, new in column_mapping.items():
         if old in df.columns:
             df.rename(columns={old: new}, inplace=True)
@@ -57,10 +55,11 @@ if df is not None and not df.empty:
             errors='coerce'
         )
 
-    # 3. Limpiar y convertir cantidades (eliminar comas, espacios, etc.)
+    # 3. ✅ CORRECCIÓN: Limpiar y convertir cantidades (coma decimal → punto decimal)
     def clean_number(val):
         if isinstance(val, str):
-            val = val.replace(',', '').replace(' ', '').strip()
+            # Reemplazar coma decimal por punto, eliminar espacios
+            val = val.replace(',', '.').replace(' ', '').strip()
             if val == '':
                 return None
         return val
@@ -70,19 +69,16 @@ if df is not None and not df.empty:
             df[col] = df[col].apply(clean_number)
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # 4. Encontrar las columnas de almacén (usando los nombres exactos con caracteres extraños)
-    #    Estos son los nombres que aparecen en la lista de columnas del DataFrame original
+    # 4. Encontrar las columnas de almacén
     col_de_almacen = None
     col_almacen = None
     
-    # Buscar exactamente los nombres con caracteres extraños
     for col in df.columns:
         if col == "De cÃ³digo de almacÃ©n":
             col_de_almacen = col
         elif col == "CÃ³digo de almacÃ©n":
             col_almacen = col
     
-    # Si no se encontraron, buscar por coincidencia parcial (más flexible)
     if col_de_almacen is None:
         for col in df.columns:
             if "almacén" in col.lower() and "de" in col.lower():
@@ -99,11 +95,10 @@ if df is not None and not df.empty:
     st.sidebar.write(f"📌 Columna 'De código': **{col_de_almacen or 'No encontrada'}**")
     st.sidebar.write(f"📌 Columna 'Código': **{col_almacen or 'No encontrada'}**")
 
-    # Advertencia si no se encontraron
     if col_de_almacen is None:
-        st.sidebar.warning("⚠️ No se encontró la columna 'De código de almacén'. El filtro no funcionará.")
+        st.sidebar.warning("⚠️ No se encontró la columna 'De código de almacén'.")
     if col_almacen is None:
-        st.sidebar.warning("⚠️ No se encontró la columna 'Código de almacén'. El filtro no funcionará.")
+        st.sidebar.warning("⚠️ No se encontró la columna 'Código de almacén'.")
 
     # ========= FILTROS =========
     filtro_de_almacen = st.sidebar.text_input("De código de almacén", "")
