@@ -56,10 +56,11 @@ if df is not None and not df.empty:
         )
 
     # 3. ✅ CORRECCIÓN: Limpiar y convertir cantidades (coma decimal → punto decimal)
+    # 3. ✅ CORRECCIÓN DEFINITIVA: Quitar comas de miles y limpiar espacios
     def clean_number(val):
         if isinstance(val, str):
-            # Reemplazar coma decimal por punto, eliminar espacios
-            val = val.replace(',', '.').replace(' ', '').strip()
+            # Eliminamos las comas de miles (,) y dejamos el punto decimal (.)
+            val = val.replace(',', '').replace(' ', '').strip()
             if val == '':
                 return None
         return val
